@@ -159,6 +159,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Données médicales locales : garder les fichiers sources hors du dépôt.
+/data/
+/allergenchipchallenge-data-corrected-final-hdh-sfa.csv
+
 # Spyder project settings
 .spyderproject
 .spyproject
