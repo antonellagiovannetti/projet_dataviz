@@ -1,69 +1,193 @@
-# Un signal global, des profils qui divergent
+# Allergy Atlas
 
-Dashboard narratif réalisé avec **Dash et Plotly** pour le cours de data visualisation (M2 IA / Data), à partir des données publiques de l’Allergen Chip Challenge.
+**Explorer les signatures IgE du Allergen Chip Challenge**  
+Projet M2 IA / Data · Dashboard interactif en Python
 
-## Problématique
+> **Problématique :** comment les profils de sensibilisation IgE se structurent-ils dans ACC, et quels liens présentent-ils avec les manifestations cliniques disponibles ?
 
-**La diversité des sensibilisations IgE varie-t-elle avec l’âge et les symptômes cutanés, et cette relation se retrouve-t-elle selon la puce utilisée ?**
+L’application transforme un fichier de **4 271 patients et 241 mesures IgE** en un parcours d’exploration : comprendre les technologies de mesure, comparer les signaux, observer les différences cliniques et construire ses propres cohortes. Les regroupements sont exploratoires ; ils ne constituent pas des diagnostics.
 
-Le fil rouge part d’un signal global presque parfaitement concordant avec les mesures moléculaires, puis montre que la puce définit la fenêtre d’observation. Il compare ensuite la part de composants au seuil selon l’âge et les symptômes cutanés, avant de laisser le lecteur explorer les composants.
+[Installation](#installation-et-lancement) · [Technologies](#technologies-utilisées) · [Parcours](#parcours-du-dashboard) · [Organisation](#organisation-du-projet) · [Présentation détaillée](docs/presentation.md)
 
-Cette question est volontairement plus rigoureuse qu’une prédiction de sévérité : le CSV fourni ne contient pas les variables `Allergy_Present` ni `Severe_Allergy` décrites dans le dictionnaire. Le dashboard ne prétend donc pas prédire la sévérité d’une allergie.
+![Vue d’ensemble : problématique et premières observations](docs/images/preview-narrative.jpg)
 
-## Parcours de lecture
+## Ce que permet le dashboard
 
-1. **Le statut global et le signal moléculaire** — matrice de concordance entre `Sensitization` et la présence d’au moins une mesure de composant à 0,30 ou plus. C’est un contrôle interne, pas une validation clinique indépendante.
-2. **La fenêtre de mesure** — nombre médian de composants observés pour chaque puce. Une cellule absente du panel reste manquante ; elle ne devient pas un zéro.
-3. **L’âge** — part moyenne des composants mesurés au seuil par patient et par classe d’âge, avec intervalles bootstrap à 95 %.
-4. **Les symptômes cutanés** — écart entre dossiers avec et sans symptômes, standardisé sur la distribution d’âge de chaque puce. Le résultat est présenté séparément par plateforme.
-5. **L’exploration** — filtre d’âge, choix de puce et de composant ; la sélection est reflétée dans l’URL et peut être partagée. La carte retient les 16 composants les plus souvent au seuil en moyennant les taux par puce ; les cellules avec moins de 20 mesures sont masquées.
+- Filtrer une population par âge, sexe, technologie, sensibilisation et informations cliniques disponibles.
+- Cliquer sur certains graphiques pour affiner la sélection, ou sélectionner des patients sur la projection PCA.
+- Lire un court **« À retenir » sous chaque graphique**, adapté à la sélection lorsqu’il présente un résultat chiffré.
+- Explorer les regroupements IgE et observer leur composition clinique et technologique.
+- Enregistrer deux cohortes A/B, comparer leurs signatures et exporter la sélection en CSV.
+- Consulter **26 notions dans Repères & vocabulaire**, avec une recherche qui accepte les mots sans accents.
+- Naviguer entre chapitres avec un fondu et un léger glissement directionnel. Ces effets respectent la préférence de réduction des animations.
 
-## Méthode et limites
+## Technologies utilisées
 
-- Le seuil exploratoire `0.30` est appliqué dans l’unité propre à la plateforme. Il sert ici à comparer qualitativement des signaux moléculaires, jamais à définir un grade de sévérité.
-- Pour chaque patient, la **diversité observée** est le nombre de composants mesurés à `≥ 0.30`, divisé par le nombre de composants effectivement mesurés. La moyenne est calculée ensuite au niveau des patients, afin qu’un panel plus grand ne pèse pas mécaniquement davantage.
-- Les classes d’âge sont `0–5`, `6–11`, `12–17`, `18–39` et `40+`. Les comparaisons sont transversales : elles ne suivent pas les mêmes personnes dans le temps.
-- Les intervalles des moyennes par âge utilisent un bootstrap patient (600 réplications). Le contraste cutané est standardisé directement sur la distribution d’âge observée parmi les dossiers avec statut cutané connu, séparément pour chaque puce ; son intervalle bootstrap rééchantillonne les patients dans chaque classe d’âge et statut cutané.
-- Le contraste cutané est défini comme **symptômes oui − symptômes non**. Les intervalles qui recoupent zéro restent compatibles avec l’absence de différence dans cette analyse.
-- Les symptômes cutanés inconnus et les mesures absentes sont conservés comme tels. Les valeurs négatives `−1` présentes dans le fichier sont traitées comme codes de mesure absente.
-- L’analyse est descriptive et rétrospective. Elle ne démontre ni causalité, ni performance prédictive, ni validité clinique indépendante. L’âge n’est pas le seul facteur de confusion possible et la composition des cohortes peut différer entre plateformes.
+Les versions des bibliothèques Python sont fixées dans [requirements.txt](requirements.txt). Le projet est développé et vérifié avec **Python 3.13**.
 
-## Lancer le dashboard sous Windows
+| Technologie | Version du projet | Rôle concret |
+|---|---|---|
+| **Python** | 3.13, environnement de vérification | Chargement, préparation des données, statistiques et serveur de l’application. |
+| **Dash** | 4.4.1 | Construction des pages et composants, callbacks, filtres, navigation et états des cohortes. |
+| **Plotly** | 5.24.0 | Graphiques interactifs : survol, zoom, sélections, matrices, PCA, flux et export SVG. |
+| **pandas** | 2.3.3 | Lecture du CSV, tableaux, regroupements, filtres et dénominateurs observés. |
+| **NumPy** | 2.4.1 | Calculs numériques, masques de validité et transformation `log1p`. |
+| **scikit-learn** | 1.8.0 | Standardisation, KMeans, PCA et score de silhouette. |
+| **SciPy** | 1.17.0 | Calculs statistiques, notamment l’association puce × profil. |
+| **threadpoolctl** | 3.6.0 | Limitation du parallélisme des bibliothèques numériques pendant les modèles. |
+| **xlrd** | 2.0.2 | Lecture du dictionnaire Excel historique `.xls` lors de l’examen des sources. |
+| **pytest** | 9.1.0 | Vérification des règles scientifiques et des callbacks Dash. |
+| **HTML / CSS** | Composants Dash et CSS natif | Structure accessible, identité visuelle, mise en page responsive et animations. |
+| **JavaScript** | Natif, sans bibliothèque d’animation | Synchronisation des transitions avec les pages rendues, indicateur de navigation et tiroir mobile. |
 
-Le fichier CSV reste local dans le dossier Téléchargements. Le programme essaie automatiquement de le trouver à cet emplacement ; il n’est pas nécessaire de le copier dans le dépôt.
+**Pourquoi cette combinaison ?** Python garde les calculs et les règles de préparation dans un même langage. Dash relie directement les interactions à ces calculs. Plotly fournit les outils de lecture et de sélection nécessaires à une exploration, tandis que CSS et JavaScript apportent la mise en forme et le mouvement.
+
+L’application utilise les fichiers locaux. Elle ne nécessite **ni clé API ni base de données**. Dash s’appuie sur **Flask côté serveur** et **React pour le rendu des composants** ; ces couches sont gérées par Dash, sans projet React séparé à compiler. Les polices web ont une solution de repli locale.
+
+## Installation et lancement
+
+### Windows · PowerShell
+
+Ouvrir un terminal dans le dossier du projet, avec Python 3.13 installé :
 
 ```powershell
-cd C:\Users\yoanv\Desktop\DataViz\projet_dataviz
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python app.py
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py
 ```
 
-Ouvrir ensuite [http://127.0.0.1:8050](http://127.0.0.1:8050).
+Si `.venv` existe déjà et que les dépendances sont installées, seule la dernière commande est nécessaire. Aucune activation de l’environnement PowerShell n’est requise.
 
-Si le CSV est ailleurs, définir son chemin avant de lancer l’application :
+### macOS / Linux
+
+Avec Python 3.13 disponible :
+
+```bash
+python3.13 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python app.py
+```
+
+Ouvrir **[http://127.0.0.1:8050](http://127.0.0.1:8050)** une fois le serveur prêt. Le premier démarrage prépare les regroupements ; cela peut prendre quelques secondes. Arrêter avec `Ctrl+C` dans le terminal du serveur.
+
+Pour utiliser un autre port sous PowerShell :
 
 ```powershell
-$env:ACC_CSV_PATH = "C:\chemin\vers\allergenchipchallenge-data-corrected-final-hdh-sfa.csv"
-python app.py
+$env:PORT = '8051'
+.\.venv\Scripts\python.exe app.py
 ```
 
-Les versions de Python 3.10 ou ultérieures sont recommandées. Le dashboard se lance sur la machine locale et n’envoie pas les données vers un service externe.
+### En cas de difficulté
 
-## Trame possible pour la soutenance
+| Situation | Vérification |
+|---|---|
+| `ModuleNotFoundError` | Installer `requirements.txt` avec le Python de `.venv`, puis utiliser ce même interpréteur pour lancer l’application. |
+| Le navigateur ne se connecte pas | Attendre le message `Running on http://127.0.0.1:8050` dans le terminal. |
+| Le port 8050 est occupé | Réutiliser le serveur déjà ouvert ou choisir un autre port avec `PORT`. |
+| Le CSV est introuvable | Vérifier sa présence dans `data/raw/` avec son nom original. Le chemin est résolu depuis le projet, indépendamment du dossier courant. |
+| Une modification Python n’apparaît pas | Arrêter puis relancer le serveur et actualiser le navigateur. Le mode debug est désactivé. |
 
-Présenter la question, le périmètre des données et l’absence de cible de sévérité ; faire lire la concordance globale ; expliquer pourquoi les panels ne sont pas interchangeables ; comparer la diversité par âge puis le contraste cutané standardisé ; terminer par l’exploration et rappeler ce que les résultats ne permettent pas de conclure. Le principal choix de visualisation est de rendre les dénominateurs, les intervalles et les valeurs manquantes visibles, pour éviter qu’une carte ou un taux masque les différences de couverture.
+## Parcours du dashboard
 
-## Sources
+| Vue | Question à laquelle elle répond |
+|---|---|
+| **ABC · Repères** | Que signifient les termes biologiques et statistiques employés ? |
+| **01 · Vue d’ensemble** | Quelle population étudie-t-on et quelle est la problématique ? |
+| **02 · Les mesures** | Quelles mesures sont réellement comparables entre puces ? |
+| **03 · Sensibilisation** | Quels signaux dominent et comment se combinent-ils ? |
+| **04 · Signaux cliniques** | Quelles différences observe-t-on entre les groupes renseignés ? |
+| **05 · Les profils** | Quels regroupements de signatures IgE émergent ? |
+| **06 · Mes cohortes** | Comment comparer deux populations définies par l’utilisateur ? |
+| **07 · Conclusions** | Que retenir, et quelles conclusions restent hors de portée ? |
 
-- [Page du défi : Identifier et prévoir les facteurs de sévérité des allergies](https://defis.data.gouv.fr/defis/identifier-et-prevoir-les-facteurs-de-severite-des-allergies)
-- [Jeu de données Allergen Chip Challenge sur data.gouv.fr](https://www.data.gouv.fr/datasets/allergen-chip-challenge/)
-- [Étude comparative mentionnant le seuil qualitatif de 0,30 pour les dosages ISAC et ALEX](https://www.mdpi.com/2075-4418/14/10/976)
+Les liens directs utilisent une ancre, par exemple `#profiles` ou `#glossary`. Les filtres persistent dans la session du navigateur. Les cohortes A/B mémorisent les patients retenus au moment de leur enregistrement et restent conservées dans ce navigateur ; changer un filtre ne les redéfinit pas.
 
-## Fichiers du projet
+Les indicateurs et figures suivent la sélection active. La couverture des puces, les diagnostics du modèle et la synthèse finale concernent la source complète : leur périmètre est précisé dans l’interface. Sur mobile, les filtres sont regroupés dans un tiroir et les grandes matrices défilent horizontalement.
 
-- `app.py` : récit, graphiques Plotly, interface Dash et filtres partageables.
-- `acc_data.py` : lecture locale, nettoyage des codes manquants et calculs statistiques.
-- `assets/style.css` : mise en page responsive et styles d’accessibilité.
-- `requirements.txt` : dépendances Python.
+## Organisation du projet
+
+```text
+DataViz2/
+├── app.py                       # Point d’entrée Dash
+├── README.md                    # Installation, technologies et utilisation
+├── requirements.txt             # Dépendances Python fixées
+├── .gitignore                   # Environnement, caches et fichiers temporaires exclus
+├── assets/                      # CSS, JavaScript et logo
+├── components/                  # Navigation, filtres et composants réutilisables
+├── pages/                       # Sept chapitres et glossaire
+├── src/                         # Données, statistiques, modèles et callbacks
+├── data/
+│   ├── raw/                     # CSV original, conservé sans modification
+│   └── dictionaries/            # Dictionnaires français XLS et anglais PDF
+├── docs/
+│   ├── presentation.md          # Explication du projet sous forme de présentation
+│   ├── oral-guide.md            # Démonstration orale de dix minutes
+│   ├── design-contract.md       # Choix visuels, interactions et règles scientifiques
+│   ├── brief/                   # Consignes originales du module
+│   └── images/                  # Captures du dashboard
+└── tests/                       # Vérifications des données et de l’application
+```
+
+`.venv/` contient l’environnement local. `tmp/` accueille uniquement des fichiers temporaires, notamment les journaux de l’aperçu ; ces deux dossiers ne font pas partie du code à versionner.
+
+### Où modifier quoi ?
+
+| Besoin | Fichier principal |
+|---|---|
+| Lire les données, vérifier leur structure | [src/data_loader.py](src/data_loader.py) |
+| Interpréter les codes et dériver les variables | [src/preprocessing.py](src/preprocessing.py) |
+| Calculer les indicateurs | [src/metrics.py](src/metrics.py) |
+| Préparer PCA et KMeans | [src/clustering.py](src/clustering.py) |
+| Construire les graphiques | [src/charts.py](src/charts.py) |
+| Modifier les textes « À retenir » | [src/insights.py](src/insights.py) |
+| Gérer les filtres, pages et cohortes | [src/callbacks.py](src/callbacks.py) |
+| Modifier le récit ou le vocabulaire | [pages/story.py](pages/story.py), [pages/glossary.py](pages/glossary.py) |
+| Modifier l’apparence ou les transitions | [assets/style.css](assets/style.css), [assets/motion.js](assets/motion.js) |
+
+## Données et règles d’analyse
+
+| Fichier fourni | Usage |
+|---|---|
+| [CSV ACC](data/raw/allergenchipchallenge-data-corrected-final-hdh-sfa.csv) | 4 271 patients, 256 colonnes dont 241 mesures IgE ; séparateur `;`, décimales avec virgule. |
+| [Dictionnaire français](data/dictionaries/acc-dictionnaire-final.xls) | Codes des variables et métadonnées des allergènes. |
+| [Dictionnaire anglais](data/dictionaries/dictionnaire-acc-english.pdf) | Documentation générale ; certaines variables documentées sont absentes du CSV fourni. |
+| [Consignes du module](docs/brief/Projets.pdf) | Contexte pédagogique et attendus du projet. |
+
+Les sources ont été rangées sans changer leur contenu. L’application calcule ses résultats à partir du CSV local, sans le réécrire.
+
+**Trois choix structurants :**
+
+1. **Comparer un même périmètre.** Les trois puces couvrent respectivement 112, 112 et 223 mesures. Les comparaisons transversales et les profils utilisent les **91 allergènes communs**.
+2. **Préserver le sens des manquants.** Les 52 mesures IgE négatives non documentées sont masquées pour l’analyse. Une absence de mesure n’est jamais remplacée par zéro. Les pourcentages emploient les observations renseignées.
+3. **Séparer regroupement et visualisation.** Sur les 4 241 cas complets : `log1p`, standardisation par puce par défaut, puis KMeans sur les 91 dimensions. La PCA sert à afficher une projection à deux axes. Les variables cliniques décrivent ensuite les groupes, sans les construire.
+
+Les solutions K=2 à K=8 utilisent une graine fixe. Le K proposé maximise la silhouette sur un même échantillon de 1 500 patients. Les filtres changent les patients affichés, sans réapprendre les modèles à chaque interaction.
+
+### Repères sur la cohorte complète
+
+| Indicateur | Valeur de référence |
+|---|---|
+| Sensibilisation fournie par la source | 3 579 / 4 271, soit 83,8 % |
+| Détections sur le panel commun | Médiane 11 ; Q1–Q3 = 4–21, parmi 4 241 cas complets |
+| Modèle par défaut | K=2 ; groupes de 3 433 et 808 patients ; silhouette 0,440 |
+| Projection PCA | 22,54 % de variance expliquée par les deux axes |
+
+Ces chiffres sont des repères sur le fichier fourni, pas des résultats attendus pour chaque population filtrée. Les choix, résultats et exemples sont développés dans la [présentation](docs/presentation.md).
+
+### Limites à conserver dans toute présentation
+
+Une valeur IgE `> 0` est une **détection descriptive**, distincte de la variable source `Sensitization` et d’un diagnostic d’allergie. Les traitements ne mesurent pas directement la sévérité. Les données cliniques sont incomplètes, les plateformes gardent leurs différences et les associations observées ne prouvent pas une causalité. La variable `Severe_Allergy` est **absente du CSV** : aucune cible de sévérité n’a été reconstruite.
+
+## Vérification
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+Les **44 tests** couvrent la structure des sources, les manquants, les dénominateurs, les modèles, le rendu des sept chapitres et du glossaire avec populations pleines ou vides, les sélections, la sauvegarde A/B et la cohérence des commentaires chiffrés. La navigation, la recherche et les mises en page ordinateur/mobile sont également examinées dans le navigateur.
+
+## Pour présenter le projet
+
+- **[Présentation du projet](docs/presentation.md)** — le pourquoi, le comment, les résultats et le recul critique, organisés comme un support de présentation.
+- **[Guide de l’oral](docs/oral-guide.md)** — un déroulé de dix minutes avec manipulations et réponses aux questions probables.
+- **[Contrat de conception](docs/design-contract.md)** — les raisons derrière les graphiques, les interactions et les limites d’interprétation.
