@@ -98,6 +98,12 @@
   }
 
   const bootstrap = new MutationObserver(initialize);
+  // Plotly needs a fresh width after a previously hidden analysis is revealed.
+  document.addEventListener('toggle', event => {
+    if (event.target.matches?.('.exploration-section') && event.target.open) {
+      window.requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    }
+  }, true);
   bootstrap.observe(document.documentElement, {childList: true, subtree: true});
   initialize();
   mobile.addEventListener('change', event => {

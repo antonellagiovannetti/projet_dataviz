@@ -3,6 +3,18 @@ from dash import dcc, html
 FILTER_KEYS = ["age", "sex", "chip", "sensitization", "region", "skin", "asthma", "rhinitis", "cluster", "allergen"]
 
 
+def reading_mode():
+    return html.Div([
+        html.Div([html.Span("DEUX FAÇONS DE LIRE LA COHORTE", className="eyebrow"),
+                  dcc.RadioItems(id="reading-mode", options=[
+                      {"label": "Story · suivre le parcours", "value": "story"},
+                      {"label": "Explore · interroger les données", "value": "explore"}],
+                      value="story", className="reading-mode segmented", persistence=True,
+                      persistence_type="session")], className="reading-mode-choice"),
+        html.P(id="mode-note", className="mode-note", role="status", **{"aria-live": "polite"}),
+    ], className="reading-mode-bar")
+
+
 def dropdown(key, label, options, multi=True):
     return html.Div([html.Label(label, htmlFor=f"filter-{key}"),
                      dcc.Dropdown(id=f"filter-{key}", options=options, value=[] if multi else None,
@@ -77,7 +89,7 @@ def toolbars(best_k):
                 "sensitization", id="clinical-dimension", clearable=False)]),
         ], id="tools-clinical", className="page-tools", style={"display":"none"}),
         html.Div([
-            html.Div([html.Label("Nombre de profils (K)"), dcc.Slider(2, 8, 1, value=best_k, marks={i: str(i) for i in range(2,9)}, id="cluster-k")], className="k-control"),
+            html.Div([html.Label("Nombre de profils (K)"), dcc.Slider(2, 8, 1, value=best_k, marks={i: str(i) for i in range(2,9)}, id="cluster-k", persistence=True, persistence_type="session")], className="k-control"),
             html.Div([html.Label("Standardisation des IgE"), radio("scale-mode", [
                 {"label": "Au sein de chaque puce", "value": "within"}, {"label": "Globale", "value": "global"}], "within")]),
         ], id="tools-profiles", className="page-tools", style={"display":"none"}),

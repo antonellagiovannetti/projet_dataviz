@@ -1,59 +1,90 @@
 # Contrat de conception — Allergy Atlas
 
-## Décision et public
+## Public, question et portée
 
-**Question :** comment les profils de sensibilisation IgE se structurent-ils dans ACC, et quelles différences observe-t-on selon les manifestations cliniques disponibles ?
+**Public principal :** un allergologue, clinicien ou chercheur en allergologie qui veut comprendre rapidement une cohorte, comparer des sous-populations et identifier des profils ou des signaux à approfondir.
 
-Le public visé est un étudiant, analyste ou chercheur qui veut explorer une cohorte, comprendre ses limites de mesure et comparer des sous-populations. L'application accompagne aussi une démonstration orale de dix minutes. Elle ne fournit ni diagnostic ni prédiction de sévérité.
+**Question :** comment rendre les profils IgE lisibles et explorer leurs liens avec les informations cliniques disponibles ?
 
-**Choix technique :** Dash relie les filtres, sélections Plotly et cohortes sans imposer de rechargement complet. Plotly fournit survol, zoom et sélection dans un langage graphique cohérent. Python permet de partager les mêmes règles de calcul entre figures et indicateurs. Le supplément de complexité est justifié par le filtrage croisé, la sélection PCA et les cohortes sauvegardées.
+**Message central :** les patients présentent des profils différents. Organiser correctement les mesures rend cette diversité visible et permet de formuler des pistes cliniques ; les données disponibles ne permettent pas de conclure directement sur la sévérité.
+
+Le langage est professionnel et concis. Les termes médicaux usuels sont conservés ; les termes statistiques sont expliqués dans leur usage : « PCA — une carte simplifiée des profils », « clustering — regrouper les profils qui se ressemblent ». L’application est un outil d’exploration de cohorte, sans diagnostic ni décision médicale individuelle.
+
+La priorité reste la **datavisualisation**. Le clustering répond à la nécessité de regarder 91 mesures ensemble ; il ne constitue pas la finalité du projet. La refonte conserve les données préparées, les analyses, les graphiques et les interactions, en réorganisant leur rôle dans le récit.
 
 ## Parcours et budget visuel
 
-Une navigation persistante donne accès à un glossaire « Repères » et à sept chapitres. Un seul chapitre est actif et rendu à la fois ; viser deux à cinq graphiques Plotly simultanés, complétés par de courts textes et indicateurs. Les graphiques répondent chacun à une question explicite.
+Le parcours obligatoire comporte **six chapitres**, signalés par le composant « Notre progression ». Le glossaire et le laboratoire sont des accès complémentaires. Le bouton de fin de chapitre formule le besoin de l’étape suivante ; Groupes mène directement à Conclusion.
 
-| Chapitre | Question | Encodage principal et justification |
+| Étape | Question du professionnel | Représentation et contribution |
 |---|---|---|
-| 01 Vue d'ensemble | Qui est étudié, combien de signaux observe-t-on ? | Histogramme : forme d'une distribution ; barres : effectifs des puces. |
-| 02 Mesures | Les patients sont-ils comparables ? | Matrice : couverture structurelle ; barres horizontales : données non renseignées. |
-| 03 Sensibilisation | Quels signaux dominent et comment coexistent-ils ? | Barres classées : classement ; histogramme : nombre de détections ; courbe par âge ; heatmap `log1p(IgE)` : motifs. |
-| 04 Clinique | Les signatures diffèrent-elles entre groupes observés ? | Barres divergentes : différence de fréquences en points ; barres empilées : composition clinique. |
-| 05 Profils | Quels regroupements exploratoires émergent ? | Nuage PCA : proximité projetée ; heatmap : signatures ; barres : surreprésentations et composition par puce. |
-| 06 Cohortes | Que change une définition de population ? | Tableau A/B : indicateurs lisibles ; barres divergentes : différences de fréquences. |
-| 07 Conclusions | Quelles conclusions les données autorisent-elles ? | Constats chiffrés, limites et provenance ; éviter les graphiques décoratifs. |
+| **01 Complexité** | Les patients ont-ils des profils très différents ? | L’histogramme révèle la dispersion des détections, au-delà d’un indicateur binaire. |
+| **02 Comparabilité** | Comparons-nous réellement les mêmes mesures ? | La matrice de couverture justifie les 91 allergènes communs ; les données manquantes délimitent la clinique exploitable. |
+| **03 Profils IgE** | Quels signaux dominent et comment se combinent-ils ? | Le classement situe les fréquences ; la distribution et la heatmap montrent la diversité individuelle. |
+| **04 Clinique** | Certaines détections diffèrent-elles selon la clinique disponible ? | Les barres divergentes montrent le sens et l’amplitude des écarts ; Ara h 2 rend leur lecture concrète. |
+| **05 Groupes** | Que voyons-nous en considérant les 91 mesures ensemble ? | Les scores expliquent K ; la PCA situe les patients ; les empreintes décrivent les groupes ; la composition par puce interroge l’effet de mesure. |
+| **06 Conclusion** | Qu’est-ce qui est établi, suggéré ou non démontré ? | Trois niveaux de conclusion répondent à la question sans ajouter de graphique décoratif. |
 
-## Hiérarchie et identité visuelle
+Le parcours oral dure dix minutes. Le laboratoire A/B est un prolongement facultatif, après le récit. Les graphiques secondaires sont placés dans des sections d’approfondissement pour préserver la lecture principale. Le changement d’organisation ne justifie pas d’ajouter de nouvelles analyses.
 
-Fond papier légèrement teinté, surfaces blanches, bleu nuit pour structure et texte, turquoise pour actions et accent. Réserver l'orange aux avertissements contextuels ; ne pas coder automatiquement les patients comme « sains » ou « malades » par vert/rouge. Palette qualitative stable pour les trois puces et pour les groupes, avec libellés explicites.
+## Hiérarchie narrative et visuelle
 
-Le titre formule une idée ; le sous-titre explicite le périmètre ; les axes donnent unité et dénominateur. L'interface laisse de l'espace aux graphiques. Pas de 3D, de jauge, de multiplication de camemberts ni d'animation indispensable à la compréhension. Respecter la préférence de réduction des animations.
+Chaque chapitre suit le même raisonnement : **question → obstacle → décision → visualisation → interprétation → nouvelle question**.
 
-## Contrat d'interaction
+La question et le message important précèdent les détails techniques. Autour d’un graphique important, quatre éléments courts suffisent :
 
-- Le changement d’onglet anime seulement le contenu du chapitre : fondu et léger glissement dans le sens du parcours, avec un soulignement mobile dans le menu. Une modification de filtre ne rejoue pas cette transition. La préférence système de réduction des animations désactive ces effets.
+- **Question :** ce que le graphique aide à comprendre.
+- **Lecture :** le sens des axes, des couleurs ou du contraste.
+- **À retenir :** un constat calculé pour la population affichée, ou une clé de lecture quand un constat n’est pas possible.
+- **Prudence :** la limite utile à l’interprétation, avec les détails secondaires repliables.
 
-- L'effectif retenu et son pourcentage de la cohorte source restent visibles. Les filtres globaux persistent entre chapitres ; un bouton réinitialise leur état.
-- Clic sur une puce, une classe d'âge, un allergène ou un cluster : même action que le contrôle explicite correspondant. Les filtres actifs sont affichés sous forme de pastilles lisibles.
-- Sur la PCA, la sélection au lasso ou par rectangle définit un sous-ensemble identifiable ; l'utilisateur doit pouvoir effacer cette sélection.
-- Les filtres ont un état de session (`dcc.Store` ou persistance des contrôles). Les cohortes A/B sont conservées localement dans le navigateur via `dcc.Store(storage_type="local")` ; ce stockage n'est pas un compte utilisateur partagé.
-- Sauvegarder A ou B fige les patients de la sélection. Signaler leur éventuel chevauchement : deux cohortes construites librement ne sont pas forcément indépendantes.
-- Sélectionner un allergène applique explicitement une exigence de détection (> 0) chez les patients ; ce comportement est annoncé près du classement et dans le panneau de filtres.
-- Sur petit écran, le panneau de filtres devient un tiroir refermable. Les commandes restent utilisables au clavier, disposent de libellés et d'un focus visible ; aucune étape de l'histoire n'exige exclusivement un clic sur une marque graphique.
-- Une sélection vide produit un état explicite et une action de remise à zéro, sans inventer zéro pour une statistique indéfinie.
+Les composants narratifs partagent une identité cohérente. Les décisions du panel commun et du traitement des inconnus sont visibles avant les résultats qui en dépendent. Une case sans mesure, un zéro et une donnée clinique inconnue ne doivent pas paraître équivalents.
+
+L’identité conserve un fond papier légèrement teinté, des surfaces blanches, le bleu nuit pour le texte et la structure, le turquoise pour les actions et accents. L’orange signale des limites contextuelles. Les couleurs des puces et des groupes restent stables, accompagnées de libellés ; aucune palette vert/rouge ne doit transformer automatiquement les patients en « sains » ou « malades ».
+
+Les unités et dénominateurs restent accessibles. Pas de 3D, jauges ou animations nécessaires à la compréhension. L’espace disponible sert d’abord aux questions et aux graphiques.
+
+## Deux modes, des états préservés
+
+**Story** est le mode par défaut. Il utilise la cohorte source entière et le modèle de référence : standardisation par technologie et K retenu par la silhouette. Les réglages Explore conservés ne modifient pas le récit. Le filtrage croisé graphique est réservé à Explore. Les contrôles secondaires ne dominent pas l’écran.
+
+**Explore** donne accès aux filtres, sélections, lasso, choix de K et standardisation. Les textes de résultat suivent la sélection ; les diagnostics globaux du modèle gardent leur périmètre source explicite. Les filtres ne réapprennent pas le modèle.
+
+Le passage en Story conserve les filtres, réglages, sélections Explore et cohortes A/B. Revenir en Explore permet de retrouver cette exploration. Le laboratoire ouvre Explore ; revenir au récit depuis ce laboratoire conduit à la première étape.
+
+## Contrat d’interaction
+
+- Les transitions animent le changement de chapitre, avec fondu, léger glissement et repère mobile dans la navigation. Une modification de filtre ne rejoue pas cette transition. La préférence système de réduction des animations désactive ces effets.
+- En Explore, les filtres globaux persistent entre chapitres. L’effectif retenu, les critères actifs et une action de remise à zéro gardent la sélection compréhensible.
+- Un clic sur une puce, une classe d’âge, un allergène ou un groupe correspond à un contrôle explicite. Pour un allergène, le clic retient les patients dont la mesure est détectée, c’est-à-dire supérieure à zéro.
+- Le lasso ou le rectangle de la PCA retient des identifiants précis. Une sélection vide reste vide ; elle ne doit jamais être remplacée silencieusement par toute la cohorte. L’utilisateur peut effacer la sélection.
+- Enregistrer A ou B fige les patients retenus et le contexte du modèle. Ces instantanés ne changent pas avec les filtres ultérieurs. Le chevauchement est indiqué ; deux cohortes libres ne sont pas nécessairement indépendantes.
+- Les cohortes A/B persistent localement dans le navigateur ; elles ne constituent pas un compte utilisateur partagé.
+- Les quatre exemples du laboratoire remplacent A et B à partir de la **source entière**, indépendamment des filtres et de la sélection graphique : enfants / adultes, hommes / femmes, symptômes cutanés Oui / Non, groupes 1 / 2. Les âges inconnus et statuts cutanés inconnus sont exclus des contrastes correspondants. Le contraste des groupes utilise le modèle courant ; avec K supérieur à 2, seuls les groupes 1 et 2 sont comparés.
+- Le sens des écarts est annoncé : **Oui − Non** pour la clinique, **B − A** pour les cohortes.
+- Sur petit écran, les filtres Explore deviennent un tiroir refermable. Les commandes et sections repliables restent utilisables au clavier, avec libellés et focus visibles. Le récit n’exige aucun geste graphique exclusif.
+- Une sélection vide ou un dénominateur nul produit un état explicite, jamais un zéro inventé pour une statistique indéfinie.
 
 ## Contrat scientifique
 
-- `Sensitization` est une variable fournie. Une IgE « détectée » signifie une valeur valide strictement supérieure à zéro, sans prétendre appliquer un seuil diagnostique.
-- Les comparaisons transversales et les profils utilisent les 91 allergènes communs. Couverture d'une puce et valeur valide d'un patient sont deux notions distinctes.
-- Les IgE négatives non documentées sont invalides. Un résultat manquant n'est pas remplacé par zéro ; les dénominateurs suivent les mesures disponibles.
-- Les traitements décrivent un traitement déclaré, pas la présence certaine ni la gravité d'une maladie. Le code 9 reste non renseigné ; pour les symptômes cutanés il est décrit comme « sans objet/non pertinent » dans le dictionnaire.
-- Une fréquence clinique est calculée parmi les patients renseignés, avec effectif observé et taux non renseigné affichés.
-- Les comparaisons sont descriptives. Les écarts peuvent refléter âge, recrutement, technologie, disponibilité des informations ou autres facteurs ; ils ne démontrent ni causalité ni valeur prédictive.
-- PCA et KMeans n'utilisent que des IgE. Le choix de K, la transformation, l'exclusion des cas incomplets et le contrôle de l'effet puce doivent être expliqués près des résultats.
-- `Severe_Allergy` figure dans le dictionnaire général mais pas dans le CSV fourni. Aucune cible de sévérité synthétique n'est créée.
+- Les **241 mesures** désignent les colonnes IgE du fichier ; elles ne sont pas toutes disponibles chez chaque patient. La comparaison transversale et les groupes reposent sur les **91 allergènes communs**.
+- `Sensitization` est une variable source distincte du compte calculé. Une détection signifie une mesure valide strictement supérieure à zéro, sans seuil diagnostique universel revendiqué.
+- Les valeurs IgE négatives non documentées sont invalides. Elles restent traçables dans la source et sont masquées dans les calculs. Une absence de mesure n’est pas remplacée par zéro.
+- Les comptes sur 91 mesures, KMeans et PCA nécessitent un panel complet. Les patients incomplets restent présents dans les autres analyses et dans les effectifs appropriés.
+- Les fréquences IgE utilisent les mesures observées par allergène. Les fréquences cliniques utilisent les patients renseignés. Les effectifs des groupes cliniques et les dénominateurs IgE peuvent donc différer.
+- Les traitements décrivent un traitement déclaré, pas la présence certaine ni la gravité d’une maladie. Le code 9 reste inconnu ; pour les symptômes cutanés, il est documenté comme sans objet ou non pertinent.
+- KMeans utilise uniquement les 91 mesures IgE préparées. La PCA utilise les mêmes mesures pour une projection ; elle n’est pas l’entrée de KMeans. La clinique décrit les groupes après leur construction.
+- Les scores K = 2 à 8 justifient le choix par défaut. La silhouette n’est pas une validation clinique. Les groupes et leur numérotation ne sont pas des diagnostics ou des degrés de gravité.
+- Un panel commun et la standardisation par technologie ne garantissent pas une harmonisation parfaite. Le V de Cramér et la composition par puce sont des diagnostics limités de l’effet de plateforme.
+- Les comparaisons restent descriptives et non ajustées. Âge, recrutement, technologie ou disponibilité des données peuvent participer aux écarts. Aucune causalité, prédiction individuelle ou représentativité générale n’est déduite.
+- `Severe_Allergy` est mentionnée dans le dictionnaire général, mais absente du CSV. Aucune cible artificielle de sévérité n’est créée.
 
-## Vérification et dossier d'évaluation
+## Choix technique et vérification
 
-Vérifier les effectifs sur les fichiers source, le sens des contrastes A/B, la cohérence des dénominateurs, les filtres combinés, la remise à zéro, une cohorte vide, la navigation et l'absence d'erreurs de callbacks. Vérifier visuellement un écran large et un écran mobile : textes, axes, légendes, survols et tiroir ne doivent pas se masquer.
+Dash coordonne les états et callbacks ; Plotly fournit les interactions graphiques ; pandas et NumPy partagent les calculs entre vues. scikit-learn prépare les mesures et calcule les modèles ; SciPy fournit le diagnostic d’association. CSS et JavaScript adaptent la lecture et les transitions. Les tests pytest vérifient les invariants et comportements utiles.
 
-Les [consignes du module](brief/Projets.pdf) demandent de présenter le parcours de conception et d'argumenter l'outil choisi. Elles prévoient également un dépôt intermédiaire après trois jours, un quiz théorique et une co-évaluation commentée. La capacité à critiquer ses choix fait donc partie de la démonstration : expliquer ce qui a été conservé, pourquoi le périmètre commun est nécessaire et ce qui ne peut pas être déduit du jeu ouvert.
+La vérification porte sur les effectifs source, le sens des contrastes, les dénominateurs manquants, le modèle de référence Story, la conservation de l’état Explore, les filtres combinés, le lasso, les cohortes et les exemples rapides. Contrôler aussi les cas vides, la navigation, les callbacks, le clavier, les sections repliables, le mobile et la réduction des animations.
+
+Une revue visuelle complète les tests : questions lisibles, axes et légendes visibles, graphiques cohérents avec leur texte, absence de débordement ou de commande masquée. Les captures du dossier `docs/images` documentent l’interface ; elles ne remplacent pas les contrôles fonctionnels.
+
+La [présentation](presentation.md) explique le pourquoi et le comment. Le [guide oral](oral-guide.md) fixe le parcours de dix minutes. Le [README](../README.md) décrit le lancement et l’architecture. Les [consignes du module](brief/Projets.pdf) restent la référence pour les attendus d’évaluation.

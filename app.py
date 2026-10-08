@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 from dash import Dash, dcc, html
 from components.navbar import navbar
-from components.filters import filter_panel, toolbars
+from components.filters import filter_panel, reading_mode, toolbars
 from src.data_loader import load_data
 from src.clustering import get_profiles
 from src.callbacks import register_callbacks
@@ -30,6 +30,7 @@ app.layout = html.Div([
     navbar(), html.Div(html.Div(id="page-progress"), className="progress-track"),
     filter_panel(dataset, int(dataset.frame.age.max())),
     html.Main([
+        reading_mode(),
         html.Div([html.Span("EXPLORATION INTERACTIVE", className="workspace-label"),
                   html.Div(id="active-filters", className="active-filters", role="status", **{"aria-live": "polite"})], className="workspace-status"),
         toolbars(model.best_k),
@@ -37,7 +38,7 @@ app.layout = html.Div([
         html.Footer([html.Span("ALLERGY ATLAS"), html.Span("Données ACC · Analyse descriptive & exploratoire"),
                      html.A("Limites & sources ↗", href="#conclusions")], className="main-footer"),
     ], id="main-content", className="workspace"),
-], className="app-shell")
+], id="app-shell", className="app-shell mode-story")
 register_callbacks(app, dataset, model)
 
 if __name__ == "__main__":

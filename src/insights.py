@@ -19,6 +19,63 @@ def _name(value):
     return str(value).replace("_", " ")
 
 
+def clinical_example(df, allergens, outcome="skin"):
+    """Describe Ara h 2 in the selected cohort, using valid IgE denominators.
+
+    Clinical group sizes include all patients with the corresponding status;
+    rate denominators include only measured Ara h 2 values within those groups.
+    The input is the prepared frame, where invalid negative values are missing.
+    An unavailable comparison keeps its counts but has no rates or conclusion.
+    """
+    result = dict(available=False, reason="", allergen="Ara_h_2",
+                  yes_count=0, no_count=0, unknown_count=0,
+                  yes_n=0, no_n=0, yes_rate=None, no_rate=None,
+                  difference=None, conclusion="")
+    if df is None or df.empty:
+        result["reason"] = "Aucun patient sélectionné : cet exemple ne peut pas être comparé."
+        return result
+    if outcome not in df:
+        result["unknown_count"] = len(df)
+        result["reason"] = "Cette information clinique n’est pas disponible dans la sélection."
+        return result
+
+    yes = df.loc[df[outcome].eq("Oui")]
+    no = df.loc[df[outcome].eq("Non")]
+    result.update(yes_count=len(yes), no_count=len(no),
+                  unknown_count=len(df) - len(yes) - len(no))
+    if "Ara_h_2" not in allergens or "Ara_h_2" not in df:
+        result["reason"] = "Ara h 2 n’est pas disponible sur le panel sélectionné."
+        return result
+
+    result.update(yes_n=int(yes["Ara_h_2"].notna().sum()),
+                  no_n=int(no["Ara_h_2"].notna().sum()))
+    if yes.empty or no.empty:
+        result["reason"] = "Deux groupes cliniques Oui et Non non vides sont nécessaires pour comparer Ara h 2."
+        return result
+    if not result["yes_n"] or not result["no_n"]:
+        result["reason"] = "Chaque groupe doit avoir au moins une mesure valide d’Ara h 2 pour être comparé."
+        return result
+
+    comparison = cohort_difference(yes, no, ["Ara_h_2"]).iloc[0]
+    delta = float(comparison.difference)
+    result.update(available=True, yes_rate=float(comparison.prevalence_a),
+                  no_rate=float(comparison.prevalence_b), difference=delta)
+    manifestations = {
+        "skin": ("avec symptômes cutanés", "sans symptômes cutanés"),
+        "asthma": ("avec un traitement de l’asthme", "sans traitement de l’asthme"),
+        "rhinitis": ("avec un traitement de la rhinite", "sans traitement de la rhinite"),
+        "dermatitis": ("avec un traitement de la dermatite", "sans traitement de la dermatite"),
+    }
+    labels = manifestations.get(outcome, ("du groupe Oui", "du groupe Non"))
+    if np.isclose(delta, 0):
+        result["conclusion"] = "Ara h 2 est détecté aussi souvent dans les deux groupes renseignés."
+    else:
+        higher = labels[0] if delta > 0 else labels[1]
+        result["conclusion"] = (f"Ara h 2 est plus souvent détecté chez les patients {higher}, "
+                                "parmi les mesures renseignées. Ce lien ne démontre pas une cause.")
+    return result
+
+
 def _difference_note(a, b, allergens, labels, *, invert=False):
     if a is None or b is None or a.empty or b.empty:
         return "Deux groupes renseignés et non vides sont nécessaires pour observer une différence de signature."
@@ -44,7 +101,7 @@ def chart_takeaway(graph_id, *, df=None, ds=None, model=None, controls=None,
                 "ce périmètre permet de comparer les profils sans confondre détections et couverture.")
     if graph_id == "model-scores":
         score = model.scores.loc[model.scores.k.eq(model.best_k), "silhouette"].iloc[0]
-        return (f"Sur la cohorte source, K = {model.best_k} maximise la silhouette ({_n(score, 3)}. "
+        return (f"Sur la cohorte source, K = {model.best_k} maximise la silhouette ({_n(score, 3)}). "
                 "C’est un repère statistique pour choisir les profils, pas une validation clinique.")
     if graph_id in ("cohort-difference", "cohort-table"):
         if cohort_a is None or cohort_b is None:

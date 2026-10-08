@@ -6,14 +6,11 @@ RESEARCH_QUESTION = (
     "Comment les profils de sensibilisation IgE se structurent-ils dans ACC, "
     "et quels liens présentent-ils avec les manifestations cliniques disponibles ?"
 )
-CHAPTER_PURPOSE = {
-    "02": "Avant de chercher des profils, établir ce qui est réellement comparable.",
-    "03": "Repérer les signaux partagés et la diversité des sensibilisations.",
-    "04": "Observer les différences de signatures selon la clinique renseignée.",
-    "05": "Former des profils à partir des IgE, puis décrire leur composition clinique.",
-    "06": "Mettre vos hypothèses à l’épreuve en comparant deux populations.",
-    "07": "Répondre à la question de départ en distinguant constats et limites.",
-}
+STORY_STEPS = [
+    ("overview", "Complexité"), ("landscape", "Comparabilité"),
+    ("sensitization", "Profils IgE"), ("clinical", "Clinique"),
+    ("profiles", "Groupes"), ("conclusions", "Conclusion"),
+]
 
 
 def number(value, decimals=0):
@@ -38,38 +35,86 @@ def takeaway(text, label="À RETENIR"):
     return html.Div([html.Span(label, className="takeaway-label"), html.P(text)], className="chart-takeaway")
 
 
-def graph_panel(title, subtitle, figure, graph_id, badge=None, class_name="", footnote=None, insight=None):
+def observation(text):
+    return takeaway(text, "CE QU’ON OBSERVE")
+
+
+def caution(text):
+    return html.Details([html.Summary("Prudence · limites de lecture"), html.P(text)],
+                        className="chart-caution")
+
+
+def graph_panel(title, subtitle, figure, graph_id, badge=None, class_name="", footnote=None,
+                insight=None, lecture=None, caution=None):
     title = title.replace(" ?", "\u00a0?")
     return html.Section([
-        html.Div([html.Div([html.H3(title), html.P(subtitle)]),
+        html.Div([html.Div([html.Span("QUESTION", className="chart-question-label"), html.H3(title), html.P(subtitle)]),
                   html.Span(badge, className="panel-badge") if badge else None], className="panel-heading"),
+        html.P([html.Strong("Lecture · "), lecture], className="chart-reading") if lecture else None,
         html.Div(dcc.Graph(id=graph_id, figure=figure, responsive=True, style={"height": f"{figure.layout.height or 330}px"},
                   config={"displaylogo": False, "scrollZoom": False,
                           "modeBarButtonsToRemove": ["autoScale2d"],
                           "toImageButtonOptions": {"format": "svg", "filename": graph_id}},
                   className="plot"), className="plot-scroll"),
         takeaway(insight) if insight else None,
+        html.Details([html.Summary("Prudence · limites de lecture"), html.P(caution)],
+                     className="chart-caution") if caution else None,
         html.P(footnote, className="chart-footnote") if footnote else None,
     ], className=f"chart-panel {class_name}")
 
 
+def story_progress(step):
+    current = int(step) if str(step).isdigit() else 0
+    return html.Nav([
+        html.Span("Notre progression", className="story-progress-label"),
+        html.Ol([html.Li(html.A([
+            html.Span("✓" if i < current else f"{i:02d}", className="story-step-number", **{"aria-hidden": "true"}),
+            html.Span(label)], href=f"#{route}",
+            **({"aria-current": "step"} if i == current else {})),
+            className="current" if i == current else "completed" if i < current else "")
+            for i, (route, label) in enumerate(STORY_STEPS, 1)]),
+    ], className="story-progress", **{"aria-label": "Notre progression"})
+
+
 def page_heading(step, title, description):
-    if step == "01":
-        thread = html.Section([
-            html.Span("LA PROBLÉMATIQUE", className="eyebrow"),
-            html.H2(RESEARCH_QUESTION),
-            html.P("Comprendre les mesures → faire émerger des profils → explorer leurs liens avec la clinique.", className="research-path"),
-        ], className="research-question", **{"aria-label": "Problématique du projet"})
-    else:
-        thread = html.Div([
-            html.A([html.Span("FIL CONDUCTEUR"), html.Strong("Profils IgE → manifestations cliniques")], href="#overview"),
-            html.P(CHAPTER_PURPOSE[step]),
-        ], className="story-thread")
-    return html.Div([html.Div([html.Span(f"ÉTAPE {step} / 07"),
-                              html.Span("ALLERGEN CHIP CHALLENGE", className="eyebrow-source")], className="eyebrow"),
-                     html.H1(title), html.P(description, className="page-description"),
-                     html.A("Repères & vocabulaire ↗", href="#glossary", className="vocabulary-link"),
-                     thread], className="page-heading")
+    return html.Div([
+        story_progress(step),
+        html.Div([html.Span(f"CHAPITRE {step} / 06" if str(step).isdigit() else "LABORATOIRE D’EXPLORATION"),
+                  html.A("Repères & vocabulaire ↗", href="#glossary", className="vocabulary-link")], className="chapter-eyebrow"),
+        html.H1(title), html.P(description, className="page-description"),
+    ], className="page-heading")
+
+
+def story_question(question, body=None, label="LA QUESTION"):
+    return html.Section([html.Span(label, className="eyebrow"), html.H2(question),
+                         html.P(body) if body else None], className="story-question")
+
+
+def method_decision(number, title, body, steps=None):
+    return html.Section([
+        html.Span(f"DÉCISION MÉTHODOLOGIQUE N°{number}", className="eyebrow"),
+        html.H2(title), html.P(body),
+        html.Ol([html.Li([html.Strong(value), html.Span(label)]) for value, label in steps],
+                className="method-pipeline") if steps else None,
+    ], className="method-decision")
+
+
+def interpretation(text, label="CE QUE CELA IMPLIQUE"):
+    return html.Div([html.Span(label, className="eyebrow"), html.P(text)], className="interpretation")
+
+
+def transition_question(question, href, title, body=None):
+    title = title.removesuffix(" →")
+    return html.Section([
+        html.Span("LA QUESTION SUIVANTE", className="eyebrow"), html.H2(question),
+        html.P(body) if body else None,
+        html.A([title, html.Span("→", **{"aria-hidden": "true"})], href=href, className="transition-link"),
+    ], className="chapter-transition")
+
+
+def exploration_section(title, children):
+    return html.Details([html.Summary([html.Span("POUR APPROFONDIR"), title]),
+                         html.Div(children, className="exploration-content")], className="exploration-section")
 
 
 def next_step(href, title):

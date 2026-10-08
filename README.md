@@ -5,7 +5,7 @@ Projet M2 IA / Data · Dashboard interactif en Python
 
 > **Problématique :** comment les profils de sensibilisation IgE se structurent-ils dans ACC, et quels liens présentent-ils avec les manifestations cliniques disponibles ?
 
-L’application transforme un fichier de **4 271 patients et 241 mesures IgE** en un parcours d’exploration : comprendre les technologies de mesure, comparer les signaux, observer les différences cliniques et construire ses propres cohortes. Les regroupements sont exploratoires ; ils ne constituent pas des diagnostics.
+Conçu pour des **allergologues et chercheurs en allergologie**, Allergy Atlas transforme un fichier de **4 271 patients et 241 mesures IgE disponibles au total** en une enquête visuelle. Le fil conducteur : comprendre la diversité des profils, vérifier ce qui est comparable, explorer les liens cliniques, puis regrouper les profils proches. Les données disponibles ne permettent pas de conclure directement sur la sévérité. L’outil explore une cohorte ; il ne fournit ni diagnostic ni décision médicale individuelle.
 
 [Installation](#installation-et-lancement) · [Technologies](#technologies-utilisées) · [Parcours](#parcours-du-dashboard) · [Organisation](#organisation-du-projet) · [Présentation détaillée](docs/presentation.md)
 
@@ -13,11 +13,13 @@ L’application transforme un fichier de **4 271 patients et 241 mesures IgE** e
 
 ## Ce que permet le dashboard
 
+- Présenter une histoire en **six chapitres**, avec une question, une décision, une observation et une transition vers l’étape suivante.
+- Choisir **Story** pour un parcours guidé sur la cohorte complète, ou **Explore** pour retrouver ses réglages et comparer des sous-populations.
 - Filtrer une population par âge, sexe, technologie, sensibilisation et informations cliniques disponibles.
 - Cliquer sur certains graphiques pour affiner la sélection, ou sélectionner des patients sur la projection PCA.
-- Lire un court **« À retenir » sous chaque graphique**, adapté à la sélection lorsqu’il présente un résultat chiffré.
+- Lire **Question · Lecture · À retenir · Prudence** autour des graphiques, avec des commentaires chiffrés recalculés sur la population affichée.
 - Explorer les regroupements IgE et observer leur composition clinique et technologique.
-- Enregistrer deux cohortes A/B, comparer leurs signatures et exporter la sélection en CSV.
+- Enregistrer deux cohortes A/B, comparer leurs signatures et exporter la sélection en CSV ; démarrer rapidement avec les exemples âge, sexe, symptômes cutanés ou groupes 1/2.
 - Consulter **26 notions dans Repères & vocabulaire**, avec une recherche qui accepte les mots sans accents.
 - Naviguer entre chapitres avec un fondu et un léger glissement directionnel. Ces effets respectent la préférence de réduction des animations.
 
@@ -92,17 +94,21 @@ $env:PORT = '8051'
 | Vue | Question à laquelle elle répond |
 |---|---|
 | **ABC · Repères** | Que signifient les termes biologiques et statistiques employés ? |
-| **01 · Vue d’ensemble** | Quelle population étudie-t-on et quelle est la problématique ? |
-| **02 · Les mesures** | Quelles mesures sont réellement comparables entre puces ? |
-| **03 · Sensibilisation** | Quels signaux dominent et comment se combinent-ils ? |
-| **04 · Signaux cliniques** | Quelles différences observe-t-on entre les groupes renseignés ? |
-| **05 · Les profils** | Quels regroupements de signatures IgE émergent ? |
-| **06 · Mes cohortes** | Comment comparer deux populations définies par l’utilisateur ? |
-| **07 · Conclusions** | Que retenir, et quelles conclusions restent hors de portée ? |
+| **01 · Complexité** | Les patients présentent-ils des profils simples ou très différents ? |
+| **02 · Comparabilité** | Peut-on vraiment comparer tous les patients entre eux ? |
+| **03 · Profils IgE** | Quels signaux dominent et comment se combinent-ils ? |
+| **04 · Clinique** | Certains profils IgE sont-ils liés aux informations cliniques disponibles ? |
+| **05 · Groupes** | Que voit-on lorsque l’on considère les 91 mesures ensemble ? |
+| **06 · Conclusion** | Qu’avons-nous établi, et quelles conclusions restent hors de portée ? |
+| **LAB · À vous d’explorer** | Comment comparer deux populations définies par l’utilisateur ? |
 
-Les liens directs utilisent une ancre, par exemple `#profiles` ou `#glossary`. Les filtres persistent dans la session du navigateur. Les cohortes A/B mémorisent les patients retenus au moment de leur enregistrement et restent conservées dans ce navigateur ; changer un filtre ne les redéfinit pas.
+**Story** est le mode initial, prévu pour un oral de dix minutes. Il affiche toute la cohorte et le modèle de référence, avec les paramètres de lecture par défaut. Les analyses secondaires sont accessibles dans « Pour approfondir ». **Explore** rend les filtres, sélections graphiques et réglages du modèle actifs. Passer en Story conserve les réglages Explore sans les appliquer ; revenir en Explore les retrouve.
 
-Les indicateurs et figures suivent la sélection active. La couverture des puces, les diagnostics du modèle et la synthèse finale concernent la source complète : leur périmètre est précisé dans l’interface. Sur mobile, les filtres sont regroupés dans un tiroir et les grandes matrices défilent horizontalement.
+Les liens directs utilisent une ancre, par exemple `#profiles` ou `#glossary`. Le laboratoire `#explorer` ouvre le mode Explore ; revenir à Story depuis le laboratoire ramène au chapitre 1. Le glossaire reste disponible pendant tout le parcours.
+
+En Explore, les indicateurs suivent la sélection active. La couverture des puces, les diagnostics du modèle et la synthèse finale concernent la source complète : leur périmètre est précisé dans l’interface. Sur mobile, les filtres sont regroupés dans un tiroir et les grandes matrices défilent horizontalement.
+
+Les filtres persistent dans la session du navigateur. Les cohortes A/B conservent leurs identifiants dans ce navigateur ; changer un filtre ou le mode de lecture ne les redéfinit pas. **Les exemples rapides remplacent A et B à partir de la cohorte entière**, indépendamment des filtres. Le préréglage groupes 1/2 utilise le K et la standardisation courants, enregistrés avec les cohortes.
 
 ## Organisation du projet
 
@@ -114,7 +120,7 @@ DataViz2/
 ├── .gitignore                   # Environnement, caches et fichiers temporaires exclus
 ├── assets/                      # CSS, JavaScript et logo
 ├── components/                  # Navigation, filtres et composants réutilisables
-├── pages/                       # Sept chapitres et glossaire
+├── pages/                       # Six chapitres, laboratoire et glossaire
 ├── src/                         # Données, statistiques, modèles et callbacks
 ├── data/
 │   ├── raw/                     # CSV original, conservé sans modification
@@ -184,7 +190,7 @@ Une valeur IgE `> 0` est une **détection descriptive**, distincte de la variabl
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Les **44 tests** couvrent la structure des sources, les manquants, les dénominateurs, les modèles, le rendu des sept chapitres et du glossaire avec populations pleines ou vides, les sélections, la sauvegarde A/B et la cohérence des commentaires chiffrés. La navigation, la recherche et les mises en page ordinateur/mobile sont également examinées dans le navigateur.
+Les tests couvrent la structure des sources, les manquants, les dénominateurs, les modèles, le rendu des six chapitres, du laboratoire et du glossaire avec populations pleines ou vides, les modes Story/Explore, les sélections, les préréglages A/B et la cohérence des commentaires chiffrés. La navigation, la recherche et les mises en page ordinateur/mobile sont également examinées dans le navigateur.
 
 ## Pour présenter le projet
 
