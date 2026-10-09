@@ -51,3 +51,20 @@ body:has(.compact-app){overflow:hidden;background:#f3f6f9;color:#182c47;font-fam
 @media(max-width:1100px){.compact-selection{display:flex}.compact-controls{padding-left:12px;padding-right:12px}.compact-focus-row{grid-template-columns:minmax(210px,1fr) minmax(230px,1fr)}.compact-selection{grid-column:1/-1;justify-content:flex-start;text-align:left}.compact-controls{height:128px}.compact-panel-title small{display:block}}
 @media(max-height:800px) and (min-width:1101px){.compact-header{height:53px}.compact-question{min-height:42px;padding-top:4px;padding-bottom:4px}.compact-controls{height:98px;padding-top:4px;padding-bottom:4px}.compact-kpis{height:56px}.compact-kpi{padding:6px 12px}.compact-kpi strong{font-size:20px;line-height:24px}.compact-tabs{height:36px}.compact-tab{padding:8px 20px!important}.compact-intro{min-height:18px;font-size:11px}.compact-main{gap:6px}.compact-panel{padding:5px 9px}}
 @media(max-width:800px){.compact-controls{height:auto;gap:10px;padding:10px 12px}.compact-filter-row{flex-wrap:wrap;align-items:stretch}.compact-filters{width:100%;flex-basis:100%;grid-template-columns:repeat(2,minmax(0,1fr))}.compact-reset{width:100%}.compact-focus-row{grid-template-columns:minmax(0,1fr);gap:8px}.compact-focus-row>div:first-child,.compact-focus-row>div:nth-child(2){grid-template-columns:112px minmax(0,1fr)}.compact-selection{grid-column:auto;justify-content:flex-start;text-align:left;font-size:11px}.compact-panel{height:340px}.compact-panel-title h2{font-size:13px}.compact-method p{position:fixed;bottom:45px;left:12px;right:12px;width:auto;max-height:60vh;overflow:auto}}
+
+/* Final compact control layout: 4 equal dropdowns, then 2 equal dropdowns,
+   inline help, and a reset button. No overlapping selection row. */
+.compact-controls{height:112px;gap:6px;padding:7px 22px;display:flex;flex-direction:column;align-items:stretch;justify-content:center}
+.compact-filter-row{display:block;min-width:0}
+.compact-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;width:100%}
+.compact-focus-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end;min-width:0}
+.compact-focus-row>div:first-child,.compact-focus-row>div:nth-child(2){display:block;min-width:0}
+.compact-filters label,.compact-focus-row label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;color:#698091;display:block;margin-bottom:4px;white-space:nowrap}
+.compact-filters .dash-dropdown,.compact-focus-row .dash-dropdown{width:100%;min-width:0}
+.compact-filters .Select-control,.compact-focus-row .Select-control{border-radius:7px;min-height:34px}
+.compact-reset{grid-column:4;width:100%;height:35px;min-height:35px;padding:6px 10px;align-self:end;white-space:nowrap}
+.compact-selection{grid-column:3;grid-row:1;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;max-width:none;min-width:0;min-height:35px;font-size:10px;line-height:1.25;text-align:left;color:#527083;padding:0 3px}
+.compact-footer{justify-content:flex-start}
+@media(max-height:800px) and (min-width:1101px){.compact-controls{height:103px;gap:4px;padding-top:4px;padding-bottom:4px}}
+@media(max-width:1100px) and (min-width:801px){.compact-controls{padding-left:12px;padding-right:12px}.compact-filters,.compact-focus-row{gap:7px}.compact-selection{font-size:9px}}
+@media(max-width:800px){.compact-controls{height:auto;gap:10px;padding:10px 12px}.compact-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.compact-focus-row{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}.compact-selection{grid-column:1/-1;grid-row:2;min-height:0;font-size:11px}.compact-reset{grid-column:1/-1;grid-row:3}.compact-panel{height:340px}}

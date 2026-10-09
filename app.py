@@ -90,7 +90,6 @@ app.layout = html.Div([
             html.P('Explorer une cohorte pour la recherche clinique en allergologie'),
         ])], className='compact-brand'),
         html.Div([
-            html.Span(f'ACC · {number(len(FULL))} patients · {len(ALLERGENS)} allergènes comparables'),
             html.Span('Exploration, pas diagnostic', className='compact-disclaimer'),
         ], className='compact-header-right'),
     ], className='compact-header'),
@@ -102,8 +101,6 @@ app.layout = html.Div([
     html.Div([
         html.Div([
             header_controls(),
-            html.Button('Réinitialiser les filtres', id='compact-reset', n_clicks=0,
-                        className='compact-reset', title='Rétablir la population, les sélections et le zoom PCA'),
         ], className='compact-filter-row'),
         html.Div([
             control('Allergène à suivre', dcc.Dropdown(
@@ -115,6 +112,8 @@ app.layout = html.Div([
                 id='compact-focus-profile', value=None, clearable=True,
                 placeholder='Choisir ou cliquer un point PCA', options=[],
             ), 'compact-focus-profile'),
+            html.Button('Réinitialiser les filtres', id='compact-reset', n_clicks=0,
+                        className='compact-reset', title='Rétablir les filtres et les sélections'),
             html.Div(id='compact-selection', className='compact-selection',
                      role='status', **{'aria-live': 'polite'}),
         ], className='compact-focus-row'),
@@ -157,18 +156,6 @@ app.layout = html.Div([
     ], className='compact-main'),
     html.Footer([
         html.Span('Source : Allergen Chip Challenge · SFA / Health Data Hub'),
-        html.Details([
-            html.Summary('Méthode et limites'),
-            html.P('Une détection correspond ici à IgE > 0 ; cela ne suffit pas à poser un diagnostic. '
-                   'Les comparaisons utilisent les allergènes communs aux trois puces. '
-                   'Les taux IgE utilisent les mesures valides de chaque allergène. '
-                   'Les inconnus cliniques ne sont jamais assimilés à Non. '
-                   'La PCA et les groupes KMeans sont fixés sur les cas complets, sans labels cliniques. '
-                   'Les deux axes PCA résument une partie de la variance : la proximité en 2D est indicative. '
-                   'Les traitements ne prouvent pas la présence ou l’absence d’une maladie. '
-                   'Les écarts sont descriptifs ; la sévérité ne peut pas être prédite avec ce CSV.'),
-        ], className='compact-method'),
-        html.Span('Vue optimisée pour ordinateur ≥ 1366 × 768'),
     ], className='compact-footer'),
 ], className='compact-app')
 
@@ -249,12 +236,10 @@ def controls(reset, pop, chip, outcome, status, top, clinical, excess, age,
 def show_tab(tab):
     if tab == 'profiles':
         return {'display': 'none'}, {}, [
-            html.Strong('Étape 2 / 2 · Quelles associations cliniques ?'),
-            html.Span(' Les détails suivent le profil choisi ; les taux restent descriptifs.'),
+            html.Strong('Étape 2 / 2 · Quels liens entre profils IgE et manifestations cliniques ?'),
         ]
     return {}, {'display': 'none'}, [
-        html.Strong('Étape 1 / 2 · Quels profils biologiques ?'),
-        html.Span(' Vue d’ensemble → clic sur un allergène ou un profil → détails dans les deux onglets.'),
+        html.Strong('Étape 1 / 2 · Comment se structurent les profils IgE ?'),
     ]
 
 
@@ -412,7 +397,7 @@ def update(pop, chip, outcome, status, selected_allergen=None, selected_profile=
     age = resize(age, revision, f'Enfants : n={len(child)} · Adultes : n={len(adult)} · comparaison descriptive')
     profile_clinical = resize(clinical_profiles(frame, outcome, selected_profile), revision)
     scope = f'Profil {selected_profile}' if selected_profile else 'Tous les patients des filtres'
-    selection = [html.Span(f'{number(n)} patients dans les filtres · {100 * n / len(FULL):.1f} % du fichier')]
+    selection = []
     if selected_allergen:
         selection.append(html.Strong(f"Allergène suivi : {selected_allergen.replace('_', ' ')}"))
     if selected_profile:

@@ -401,3 +401,4 @@ h1 { font-size:clamp(28px,2.6vw,44px); font-weight:750; letter-spacing:-1.5px; l
   .conclusion-level li { font-size:13px; }
 }
 @media (max-width:740px) { #patient-heatmap,#cluster-fingerprints,#clinical-flow,#coverage-chart { min-width:600px; } .plot-scroll { scrollbar-width:thin; } .mobile-count { display:inline; color:var(--teal-dark); font-size:10px; margin-left:auto; margin-right:15px; } .findings-row { grid-template-columns:1fr; } .research-question { margin-top:21px; padding:17px 18px; } .research-question h2 { font-size:19px; line-height:1.5; } .research-path { font-size:10px; } .story-thread { display:block; } .story-thread p { margin-top:8px; } .chart-takeaway { margin:5px 17px 17px; padding:12px 14px; } .chart-takeaway p { font-size:11px; } }
+/* Masquer les messages sous les filtres */
