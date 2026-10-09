@@ -76,6 +76,99 @@ def clinical_example(df, allergens, outcome="skin"):
     return result
 
 
+def clinical_focus(df, allergens, outcome="skin", selected_allergen=None):
+    """Return the clinical comparison currently relevant to the displayed cohort.
+
+    An explicit allergen is retained even when it cannot be compared. Otherwise
+    choose the largest absolute Oui-minus-Non detection difference among the
+    available panel allergens. Ties follow the panel order, as in the chart.
+    Clinical group counts and measured IgE denominators are kept distinct;
+    unknown clinical statuses never enter either comparison group. This helper
+    consumes the prepared frame and uses the chart's > 0 detection rule.
+    """
+    requested = selected_allergen if selected_allergen else None
+    selected = requested is not None
+    columns = list(dict.fromkeys(allergens))
+    result = dict(available=False, reason="", allergen=requested,
+                  label=_name(requested) if selected else None, outcome=outcome,
+                  selection_mode="selected" if selected else "largest_difference",
+                  selection_reason=("Allergène choisi dans les vues du dashboard." if selected else
+                                    "Plus grand écart absolu Oui − Non parmi les allergènes comparables du panel."),
+                  comparable_count=0, rank=None,
+                  yes_count=0, no_count=0, unknown_count=0,
+                  yes_n=0, no_n=0, yes_detected=0, no_detected=0,
+                  yes_rate=None, no_rate=None, difference=None, conclusion="")
+    if df is None or df.empty:
+        result["reason"] = "Aucun patient sélectionné : aucune comparaison clinique n’est possible."
+        return result
+    if outcome not in df:
+        result["unknown_count"] = len(df)
+        result["reason"] = "Cette information clinique n’est pas disponible dans la sélection."
+        return result
+
+    yes = df.loc[df[outcome].eq("Oui")]
+    no = df.loc[df[outcome].eq("Non")]
+    result.update(yes_count=len(yes), no_count=len(no),
+                  unknown_count=len(df) - len(yes) - len(no))
+    if selected:
+        if requested not in columns or requested not in df:
+            result["reason"] = f"{result['label']} n’est pas disponible sur le panel sélectionné."
+            return result
+        result.update(yes_n=int(yes[requested].notna().sum()),
+                      no_n=int(no[requested].notna().sum()),
+                      yes_detected=int(yes[requested].gt(0).sum()),
+                      no_detected=int(no[requested].gt(0).sum()))
+    if yes.empty or no.empty:
+        result["reason"] = "Deux groupes cliniques Oui et Non non vides sont nécessaires pour comparer les détections."
+        return result
+
+    available_columns = [column for column in columns if column in df]
+    if not available_columns:
+        result["reason"] = "Aucun allergène du panel n’est disponible dans la sélection."
+        return result
+    comparison = cohort_difference(yes, no, available_columns)
+    # Re-establish the plot's source-column tie order before stable ranking.
+    comparison = (comparison.set_index("allergen").reindex(available_columns)
+                  .dropna(subset=["difference"])
+                  .sort_values("absolute_difference", ascending=False, kind="stable"))
+    result["comparable_count"] = len(comparison)
+    if selected and (not result["yes_n"] or not result["no_n"]):
+        result["reason"] = (f"Chaque groupe doit avoir au moins une mesure valide de {result['label']} "
+                            "pour être comparé ; l’allergène choisi est conservé.")
+        return result
+    if comparison.empty:
+        result["reason"] = "Aucun allergène du panel ne dispose de mesures valides dans les deux groupes."
+        return result
+
+    allergen = requested if selected else comparison.index[0]
+    row = comparison.loc[allergen]
+    delta = float(row.difference)
+    result.update(available=True, allergen=allergen, label=_name(allergen),
+                  rank=int(comparison.index.get_loc(allergen)) + 1,
+                  yes_n=int(row.measured_a), no_n=int(row.measured_b),
+                  yes_detected=int(yes[allergen].gt(0).sum()),
+                  no_detected=int(no[allergen].gt(0).sum()),
+                  yes_rate=float(row.prevalence_a), no_rate=float(row.prevalence_b),
+                  difference=delta)
+    if not selected:
+        result["selection_reason"] = (f"Plus grand écart absolu Oui − Non parmi {len(comparison)} "
+                                      "allergènes comparables du panel ; repérage exploratoire.")
+    manifestations = {
+        "skin": ("avec symptômes cutanés", "sans symptômes cutanés"),
+        "asthma": ("avec un traitement de l’asthme", "sans traitement de l’asthme"),
+        "rhinitis": ("avec un traitement de la rhinite", "sans traitement de la rhinite"),
+        "dermatitis": ("avec un traitement de la dermatite", "sans traitement de la dermatite"),
+    }
+    labels = manifestations.get(outcome, ("du groupe Oui", "du groupe Non"))
+    if np.isclose(delta, 0):
+        result["conclusion"] = f"{result['label']} est détecté aussi souvent dans les deux groupes renseignés."
+    else:
+        higher = labels[0] if delta > 0 else labels[1]
+        result["conclusion"] = (f"{result['label']} est plus souvent détecté chez les patients {higher}, "
+                                "parmi les mesures renseignées. Cet écart est descriptif et ne démontre pas une cause.")
+    return result
+
+
 def _difference_note(a, b, allergens, labels, *, invert=False):
     if a is None or b is None or a.empty or b.empty:
         return "Deux groupes renseignés et non vides sont nécessaires pour observer une différence de signature."

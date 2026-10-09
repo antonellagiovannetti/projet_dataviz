@@ -105,6 +105,49 @@ def _stats(df: pd.DataFrame, allergens: Sequence[str], threshold: float = 0) -> 
                          "mean": values.mean(), "median": values.median()})
 
 
+def _top_with_focus(stats: pd.DataFrame, score: pd.Series, top_n: int,
+                    selected_allergen: str | None) -> pd.DataFrame:
+    """Keep the requested ranking and add a measurable focused allergen if needed."""
+    rows = score.nlargest(top_n).index.tolist()
+    if selected_allergen in stats.index and selected_allergen not in rows:
+        rows.append(selected_allergen)
+    return stats.loc[rows]
+
+
+def _focus_markers(columns: Sequence[str], colors: Sequence[str],
+                   selected_allergen: str | None) -> dict:
+    focused = selected_allergen in columns
+    return dict(
+        color=[INK if focused and col == selected_allergen else color for col, color in zip(columns, colors)],
+        opacity=[1 if not focused or col == selected_allergen else .35 for col in columns],
+        line=dict(color=INK, width=[2 if focused and col == selected_allergen else 0 for col in columns]),
+    )
+
+
+def _focus_ticks(fig: go.Figure, columns: Sequence[str], selected_allergen: str | None) -> None:
+    """A textual cue and an outline make focus legible without relying on color."""
+    fig.update_yaxes(tickmode="array", tickvals=[_name(c) for c in columns],
+                     ticktext=[f"<b>{_name(c)} · ciblé</b>" if c == selected_allergen else _name(c)
+                               for c in columns])
+
+
+def _add_zero_targets(fig: go.Figure, values: Sequence[float], columns: Sequence[str], custom: list,
+                       selected_allergen: str | None) -> None:
+    """A zero-length bar still needs a visible, clickable point."""
+    rows = [i for i, value in enumerate(values) if value == 0]
+    if not rows:
+        return
+    focused = selected_allergen in columns
+    names = [columns[i] for i in rows]
+    fig.add_trace(go.Scatter(x=[0] * len(rows), y=[_name(c) for c in names], mode="markers",
+                             customdata=[custom[i] for i in rows], showlegend=False,
+                             marker=dict(size=[9 if focused and c == selected_allergen else 7 for c in names],
+                                         color=[INK if focused and c == selected_allergen else TEAL for c in names],
+                                         opacity=[1 if not focused or c == selected_allergen else .35 for c in names],
+                                         line=dict(color=INK, width=[2 if focused and c == selected_allergen else 0 for c in names])),
+                             hovertemplate=fig.data[0].hovertemplate))
+
+
 def _wilson(positive, n):
     """Wilson 95% intervals; empty denominators stay NaN, never become 0%."""
     n = np.asarray(n, dtype=float)
@@ -138,7 +181,8 @@ def common_count_histogram(df: pd.DataFrame) -> go.Figure:
     fig.add_vline(x=median, line_color=INK, line_width=1.4, line_dash="dot")
     _base(fig, 320)
     _note(fig, f"Médiane {_fmt(median)} · Q1–Q3 : {_fmt(q1)}–{_fmt(q3)} · n = {_fmt(len(values))}")
-    fig.update_layout(dragmode="select", selectdirection="h", bargap=.1)
+    # Details are available on hover; drawing an unconnected selection has no effect.
+    fig.update_layout(dragmode=False, bargap=.1)
     fig.update_xaxes(title="IgE détectées · panel commun", range=[-.7, edges[-1]])
     fig.update_yaxes(title="Patients", rangemode="tozero")
     return fig
@@ -230,33 +274,41 @@ def top_allergens(df: pd.DataFrame, allergens: Sequence[str], metric: str = "pre
     metric = {"mean_ige": "mean", "median_ige": "median"}.get(metric, metric)
     if metric not in ["prevalence", "mean", "median"]:
         metric = "prevalence"
-    stats = _stats(df, allergens, threshold).dropna(subset=[metric]).nlargest(top_n, metric).iloc[::-1]
+    stats = _stats(df, allergens, threshold).dropna(subset=[metric])
+    stats["rank"] = stats[metric].rank(method="min", ascending=False)
+    extra_focus = selected_allergen in stats.index and selected_allergen not in stats[metric].nlargest(top_n).index
+    stats = _top_with_focus(stats, stats[metric], top_n, selected_allergen).sort_values(metric, kind="stable")
     if stats.empty:
         return empty_figure("Aucune mesure IgE disponible pour cette sélection.")
-    custom = [[col, row["positive"], row["n"], row["prevalence"], row["mean"], row["median"], len(stats) - i]
-              for i, (col, row) in enumerate(stats.iterrows())]
+    custom = [[col, row["positive"], row["n"], row["prevalence"], row["mean"], row["median"], row["rank"]]
+              for col, row in stats.iterrows()]
     error = None
     if metric == "prevalence":
         low, high = _wilson(stats.positive, stats.n)
         error = dict(type="data", symmetric=False, array=high - stats.prevalence,
                      arrayminus=stats.prevalence - low, color=MUTED, thickness=1, width=2)
     fig = go.Figure(go.Bar(x=stats[metric], y=[_name(c) for c in stats.index], orientation="h",
-                          marker_color=[INK if c == selected_allergen else TEAL for c in stats.index],
+                          marker=_focus_markers(stats.index, [TEAL] * len(stats), selected_allergen),
                           width=.65, customdata=custom, error_x=error,
                           hovertemplate="<b>%{customdata[0]}</b> · rang %{customdata[6]}"
                                         "<br>IgE détectée : %{customdata[3]:.1f} %"
                                         "<br>%{customdata[1]:.0f} / %{customdata[2]:.0f} valeurs observées"
                                         "<br>Moyenne : %{customdata[4]:.2f} · médiane : %{customdata[5]:.2f}"
-                                        "<br>Valeurs source, unités propres aux puces<extra></extra>"))
-    _base(fig, max(340, top_n * 22 + 80), left=104)
+                                        "<br>Valeurs source, unités propres aux puces"
+                                        "<br>Cliquer pour cibler cet allergène<extra></extra>"))
+    _add_zero_targets(fig, stats[metric], stats.index, custom, selected_allergen)
+    _base(fig, max(340, len(stats) * 22 + 80), left=104)
     titles = {"prevalence": "Fréquence de détection (%)", "mean": "IgE moyenne · valeur source", "median": "IgE médiane · valeur source"}
     fig.update_xaxes(title=titles[metric], rangemode="tozero", ticksuffix=" %" if metric == "prevalence" else "")
     fig.update_yaxes(showgrid=False)
+    _focus_ticks(fig, stats.index, selected_allergen)
+    fig.update_layout(clickmode="event", dragmode=False)
+    focus_note = f" · top {top_n} + allergène ciblé" if extra_focus else ""
     if metric == "prevalence":
         fig.update_xaxes(range=[0, min(105, max(10, float(high.max()) * 1.1))])
-        _note(fig, "Barres fines : IC 95 % de Wilson · dénominateur propre à chaque allergène")
+        _note(fig, "Barres fines : IC 95 % de Wilson · dénominateur propre à chaque allergène" + focus_note)
     else:
-        _note(fig, "Unités propres aux plateformes ; les concentrations ne sont pas harmonisées.")
+        _note(fig, "Unités propres aux plateformes ; les concentrations ne sont pas harmonisées." + focus_note)
     return fig
 
 
@@ -364,7 +416,7 @@ def patient_heatmap(df: pd.DataFrame, allergens: Sequence[str], max_patients: in
 
 def _difference(a: pd.DataFrame, b: pd.DataFrame, allergens: Sequence[str], threshold: float,
                  top_n: int, labels: tuple[str, str], *, direction: str = "a_minus_b",
-                 interval: bool = True) -> go.Figure:
+                 interval: bool = True, selected_allergen: str | None = None) -> go.Figure:
     if a.empty or b.empty:
         return empty_figure("Les deux groupes doivent contenir au moins un patient renseigné.", 420)
     sa, sb = _stats(a, allergens, threshold), _stats(b, allergens, threshold)
@@ -373,7 +425,8 @@ def _difference(a: pd.DataFrame, b: pd.DataFrame, allergens: Sequence[str], thre
         return empty_figure("Aucune mesure commune observée dans les deux groupes.", 420)
     sign = 1 if direction == "a_minus_b" else -1
     stats["difference"] = sign * (stats.prevalence_a - stats.prevalence_b)
-    stats = stats.loc[stats.difference.abs().nlargest(top_n).index].sort_values("difference")
+    extra_focus = selected_allergen in stats.index and selected_allergen not in stats.difference.abs().nlargest(top_n).index
+    stats = _top_with_focus(stats, stats.difference.abs(), top_n, selected_allergen).sort_values("difference", kind="stable")
     a_low, a_high = _wilson(stats.positive_a, stats.n_a)
     b_low, b_high = _wilson(stats.positive_b, stats.n_b)
     # Newcombe independent-proportion intervals derived from Wilson score intervals.
@@ -386,28 +439,37 @@ def _difference(a: pd.DataFrame, b: pd.DataFrame, allergens: Sequence[str], thre
     error = dict(type="data", symmetric=False, array=upper, arrayminus=lower,
                  color=MUTED, thickness=1, width=2) if interval else None
     fig = go.Figure(go.Bar(x=stats.difference, y=[_name(c) for c in stats.index], orientation="h", width=.6,
-                          marker_color=[TEAL if d >= 0 else VIOLET for d in stats.difference],
+                          marker=_focus_markers(stats.index, [TEAL if d >= 0 else VIOLET for d in stats.difference],
+                                                selected_allergen),
                           customdata=custom, error_x=error,
                           hovertemplate="<b>%{customdata[0]}</b>"
                                         f"<br>{labels[0]} : %{{customdata[1]:.1f}} % (%{{customdata[3]:.0f}} / %{{customdata[4]:.0f}})"
                                         f"<br>{labels[1]} : %{{customdata[2]:.1f}} % (%{{customdata[5]:.0f}} / %{{customdata[6]:.0f}})"
-                                        "<br>Différence : %{x:+.1f} points<extra></extra>"))
-    _base(fig, max(380, top_n * 23 + 105), left=110, bottom=65)
+                                        "<br>Différence : %{x:+.1f} points"
+                                        "<br>Cliquer pour cibler cet allergène<extra></extra>"))
+    _add_zero_targets(fig, stats.difference, stats.index, custom, selected_allergen)
+    _base(fig, max(380, len(stats) * 23 + 105), left=110, bottom=65)
     max_abs = max(float((stats.difference - (lower if interval else 0)).abs().max()),
                   float((stats.difference + (upper if interval else 0)).abs().max()), 5)
     fig.update_xaxes(range=[-max_abs * 1.12, max_abs * 1.12], title="Écart de détection (points de pourcentage)", showgrid=True)
     fig.update_yaxes(showgrid=False)
+    _focus_ticks(fig, stats.index, selected_allergen)
+    fig.update_layout(clickmode="event", dragmode=False)
     fig.add_vline(x=0, line_color="#b8c1cb", line_width=1)
     suffix = " · IC 95 % exploratoires, non ajustés" if interval else " · comparaison descriptive"
+    if extra_focus:
+        suffix += f" · top {top_n} + allergène ciblé"
     _note(fig, f"{labels[0]} : n = {_fmt(len(a))} · {labels[1]} : n = {_fmt(len(b))}{suffix}")
     return fig
 
 
 def clinical_differential(df: pd.DataFrame, clinical_col: str, allergens: Sequence[str],
-                          threshold: float = 0, top_n: int = 15) -> go.Figure:
+                          threshold: float = 0, top_n: int = 15,
+                          selected_allergen: str | None = None) -> go.Figure:
     statuses = _clinical(df, clinical_col)
     a, b = df.loc[statuses.eq("Oui")], df.loc[statuses.eq("Non")]
-    fig = _difference(a, b, allergens, threshold, top_n, ("Présence", "Absence"))
+    fig = _difference(a, b, allergens, threshold, top_n, ("Présence", "Absence"),
+                      selected_allergen=selected_allergen)
     if not a.empty and not b.empty:
         fig.update_xaxes(title="Écart Oui − Non (points)")
         fig.update_layout(margin_b=90)
@@ -483,7 +545,8 @@ def parallel_categories(df: pd.DataFrame, dimensions: Sequence[str] | None = Non
     return fig
 
 
-def pca_scatter(projection_df: pd.DataFrame, explained_variance: Sequence[float] | None = None) -> go.Figure:
+def pca_scatter(projection_df: pd.DataFrame, explained_variance: Sequence[float] | None = None,
+                selected_cluster: str | int | None = None) -> go.Figure:
     df = projection_df
     if df.empty or not all(c in df for c in ["pc1", "pc2", "cluster"]):
         return empty_figure("Projection indisponible pour cette sélection.", 465)
@@ -493,21 +556,27 @@ def pca_scatter(projection_df: pd.DataFrame, explained_variance: Sequence[float]
     fig = go.Figure()
     symbols = {"ISAC V1": "circle", "ISAC V2": "diamond", "ALEX": "square"}
     clusters = sorted(df.cluster.dropna().astype(str).unique(), key=lambda x: (not x.isdigit(), int(x) if x.isdigit() else x))
+    focused = str(selected_cluster) in clusters if selected_cluster is not None else False
     for i, cluster in enumerate(clusters):
         group = df.loc[df.cluster.astype(str).eq(cluster)]
+        is_selected = focused and cluster == str(selected_cluster)
         custom = pd.DataFrame({c: _column(group, c) for c in ["id", "age", "sex", "chip", "common_count", "cluster"]})
-        fig.add_trace(go.Scattergl(x=group.pc1, y=group.pc2, mode="markers", name=f"Profil {cluster} · n = {_fmt(len(group))}",
+        name = f"Profil {cluster} · n = {_fmt(len(group))}" + (" · ciblé" if is_selected else "")
+        fig.add_trace(go.Scattergl(x=group.pc1, y=group.pc2, mode="markers", name=name,
                                    customdata=custom.astype(object).where(custom.notna(), "Inconnu").values,
-                                   marker=dict(size=6, color=COLORS[((int(cluster) - 1) if cluster.isdigit() else i) % len(COLORS)], opacity=.68,
-                                               symbol=[symbols.get(c, "circle") for c in _column(group, "chip")], line_width=0),
-                                   selected=dict(marker=dict(opacity=1, size=8)), unselected=dict(marker=dict(opacity=.16)),
+                                   marker=dict(size=8 if is_selected else 6,
+                                               color=COLORS[((int(cluster) - 1) if cluster.isdigit() else i) % len(COLORS)],
+                                               opacity=.95 if is_selected else (.18 if focused else .68),
+                                               symbol=[symbols.get(c, "circle") for c in _column(group, "chip")],
+                                               line=dict(color=INK, width=1.3 if is_selected else 0)),
                                    hovertemplate="<b>%{customdata[0]} · profil %{customdata[5]}</b>"
                                                  "<br>Âge : %{customdata[1]} ans · %{customdata[2]}"
                                                  "<br>Puce : %{customdata[3]}"
                                                  "<br>IgE détectées (panel commun) : %{customdata[4]}"
-                                                 "<br>PC1 : %{x:.2f} · PC2 : %{y:.2f}<extra></extra>"))
+                                                 "<br>PC1 : %{x:.2f} · PC2 : %{y:.2f}"
+                                                 "<br>Cliquer pour caractériser ce profil<extra></extra>"))
     _base(fig, 480, left=50, bottom=90)
-    fig.update_layout(dragmode="lasso", legend=dict(y=1.1, font_size=10))
+    fig.update_layout(dragmode="zoom", clickmode="event", legend=dict(y=1.1, font_size=10))
     labels = ["Composante principale 1", "Composante principale 2"]
     if explained_variance is not None and len(explained_variance) >= 2:
         labels = [f"PC{i + 1} · {100 * explained_variance[i]:.1f} % de variance" for i in [0, 1]]
@@ -551,7 +620,8 @@ def cluster_fingerprints(standardized: pd.DataFrame, labels, top_n: int = 25) ->
 
 
 def cluster_excess(df: pd.DataFrame, allergens: Sequence[str], selected_cluster: str | int | None = None,
-                    threshold: float = 0, top_n: int = 15, selected_df: pd.DataFrame | None = None) -> go.Figure:
+                    threshold: float = 0, top_n: int = 15, selected_df: pd.DataFrame | None = None,
+                    selected_allergen: str | None = None) -> go.Figure:
     if df.empty or "cluster" not in df:
         return empty_figure("Aucun profil disponible pour cette sélection.")
     if selected_cluster is None:
@@ -559,7 +629,8 @@ def cluster_excess(df: pd.DataFrame, allergens: Sequence[str], selected_cluster:
     cohort = df if selected_df is None else selected_df
     selected = cohort.loc[cohort.cluster.astype(str).eq(str(selected_cluster))]
     fig = _difference(selected, df, allergens, threshold, top_n,
-                      (f"Profil {selected_cluster}", "Population"), interval=False)
+                      (f"Profil {selected_cluster}", "Population"), interval=False,
+                      selected_allergen=selected_allergen)
     if not selected.empty:
         fig.update_xaxes(title="Écart au total (points de pourcentage)")
     return fig
@@ -585,10 +656,11 @@ def cluster_platform_composition(df: pd.DataFrame) -> go.Figure:
 
 
 def cohort_difference(a: pd.DataFrame, b: pd.DataFrame, allergens: Sequence[str],
-                       threshold: float = 0, top_n: int = 15) -> go.Figure:
+                       threshold: float = 0, top_n: int = 15,
+                       selected_allergen: str | None = None) -> go.Figure:
     # Saved cohorts can overlap: do not display independent-sample confidence intervals.
     fig = _difference(a, b, allergens, threshold, top_n, ("Cohorte A", "Cohorte B"),
-                      direction="b_minus_a", interval=False)
+                      direction="b_minus_a", interval=False, selected_allergen=selected_allergen)
     if not a.empty and not b.empty:
         fig.update_xaxes(title="← Cohorte A · écart B − A (points) · Cohorte B →")
         fig.update_layout(margin_b=100)
