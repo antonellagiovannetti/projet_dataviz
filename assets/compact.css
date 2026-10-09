@@ -13,3 +13,16 @@ body:has(.compact-app){overflow:hidden;background:#f3f6f9;color:#182c47;font-fam
 @media(max-width:1100px){.compact-header-right{display:none}.compact-controls{gap:8px;padding:8px 12px}.compact-selection{display:none}.compact-filters{gap:8px}.compact-intro{font-size:11px}.compact-panel-title small{display:none}.compact-panel-title h2{font-size:12px}}
 @media(max-height:720px) and (min-width:900px){.compact-header{height:56px}.compact-controls{height:69px}.compact-kpis{height:64px}.compact-main{gap:7px;padding-top:7px}.compact-kpi{padding:6px 12px}.compact-kpi strong{font-size:19px}.compact-panel{padding:6px 10px}.compact-intro{font-size:11px}}
 @media(max-width:800px){body:has(.compact-app){overflow:auto}.compact-app{height:auto;min-height:100dvh;overflow:visible}.compact-header{padding:12px 16px}.compact-controls{height:auto;flex-direction:column}.compact-filters{grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.compact-main{overflow:visible}.compact-kpis{height:auto;grid-template-columns:repeat(2,minmax(0,1fr))}.compact-grid{display:flex;flex-direction:column!important}.compact-panel{height:310px;flex:none}.compact-footer{height:auto;padding:10px;flex-wrap:wrap}}
+
+/* Permanent, legible scientific question; two tabs match its two sub-questions. */
+.compact-question{flex:none;min-height:50px;display:flex;align-items:center;gap:15px;padding:8px 27px;background:#e7f2f0;border-bottom:1px solid #c9e2dd;color:#214b53;font-size:12px;line-height:1.35}
+.compact-question strong{white-space:nowrap;color:#0e7770;text-transform:uppercase;font-size:10px;letter-spacing:.55px}
+.compact-question span{font-weight:600}
+.compact-header{height:61px}
+.compact-controls{height:69px}
+.compact-kpis{height:65px}
+.compact-main{gap:7px;padding-top:7px}
+.compact-panel{padding:7px 11px 5px}
+.compact-takeaway{font-size:11px}
+@media (max-width:800px){.compact-question{padding:10px 15px;display:block}.compact-question strong{display:block;margin-bottom:5px}}
+@media (max-height:760px) and (min-width:801px){.compact-question{min-height:42px;padding-top:4px;padding-bottom:4px}.compact-header{height:53px}.compact-controls{height:60px}.compact-kpis{height:56px}.compact-tabs{height:36px}.compact-tab{padding:8px 20px!important}}
