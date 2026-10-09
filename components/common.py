@@ -3,7 +3,7 @@ from dash import dcc, html
 import pandas as pd
 
 RESEARCH_QUESTION = (
-    "Comment les profils de sensibilisation IgE se structurent-ils dans ACC, "
+    "Quels profils de détection IgE observe-t-on dans ACC, "
     "et quels liens présentent-ils avec les manifestations cliniques disponibles ?"
 )
 STORY_STEPS = [
@@ -50,7 +50,8 @@ def graph_panel(title, subtitle, figure, graph_id, badge=None, class_name="", fo
     return html.Section([
         html.Div([html.Div([html.Span("QUESTION", className="chart-question-label"), html.H3(title), html.P(subtitle)]),
                   html.Span(badge, className="panel-badge") if badge else None], className="panel-heading"),
-        html.P([html.Strong("Lecture · "), lecture], className="chart-reading") if lecture else None,
+        html.Details([html.Summary("Comment lire ce graphique ?"), html.P(lecture, className="chart-reading")],
+                     className="chart-caution chart-howto") if lecture else None,
         html.Div(dcc.Graph(id=graph_id, figure=figure, responsive=True, style={"height": f"{figure.layout.height or 330}px"},
                   config={"displaylogo": False, "scrollZoom": False,
                           "modeBarButtonsToRemove": ["autoScale2d"],

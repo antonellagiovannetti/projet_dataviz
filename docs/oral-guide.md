@@ -1,6 +1,6 @@
 # Allergy Atlas — oral de dix minutes
 
-*Public : allergologues, cliniciens et chercheurs en allergologie.*
+*Public : allergologues impliqués dans la recherche clinique et chercheurs en allergologie. Outil d’exploration de cohorte, non destiné à l’aide au diagnostic individuel.*
 
 > **Fil directeur : les profils IgE sont différents ; rendre les mesures comparables permet d’explorer cette diversité et ses liens cliniques, sans conclure à une sévérité individuelle.**
 

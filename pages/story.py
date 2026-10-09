@@ -67,7 +67,7 @@ def overview(df, ds, **_):
                             "Comment rendre cette complexité lisible ?"],
                      "Un patient peut présenter plusieurs signaux IgE en même temps. Explorons leurs combinaisons et leurs liens cliniques, sans confondre profil biologique et sévérité."),
         html.P(f"{len(ds.allergens)} mesures différentes sont présentes dans le fichier ; chaque technologie n’en mesure qu’une partie. "
-               "Allergy Atlas accompagne l’exploration de cohorte par les professionnels de l’allergologie.", className="context-caption"),
+               "Allergy Atlas est destiné aux allergologues impliqués dans la recherche clinique : observer une cohorte, comparer des profils et formuler des hypothèses, sans diagnostic individuel.", className="context-caption"),
         html.Div([
             metric("PATIENTS", number(len(df)), f"sur {number(len(ds.frame))} dans la source", True),
             metric("MESURES IgE DANS LE FICHIER", str(len(ds.allergens)), "pas toutes mesurées chez chaque patient"),
@@ -82,7 +82,7 @@ def overview(df, ds, **_):
               lecture="Horizontal : nombre d’IgE > 0 sur le panel commun. Vertical : patients. Pointillés : médiane ; bande claire : les 50 % centraux.",
               insight=chart_takeaway("overview-hist", df=df, ds=ds),
               caution="Une détection dans le fichier n’équivaut ni à un diagnostic d’allergie ni à un niveau de sévérité. Seuls les panels complets sont comptés."),
-        interpretation(implication),
+        exploration_section("Pourquoi ce nombre ne suffit-il pas ?", [interpretation(implication)]),
         exploration_section("Comment les patients se répartissent-ils entre les technologies ?", [
             panel("Combien de patients ont été mesurés avec chaque technologie ?",
                   "Les effectifs situent les trois sources de mesures avant d’examiner leur comparabilité.",
@@ -156,26 +156,23 @@ def sensitization(df, ds, controls, cross, **_):
         note("Les intensités nécessitent une seule technologie", "Les valeurs brutes utilisent les unités propres aux plateformes. Filtrez une seule technologie pour comparer les intensités moyennes ou médianes.")
         if not is_frequency and df.chip.nunique() > 1 else None,
         panel("Quels allergènes dominent dans la sélection ?",
-              "Une première vue d’ensemble pour repérer les signaux qui contribuent aux profils de la cohorte.",
+              "Le taux correspond aux mesures IgE strictement positives (> 0) parmi les mesures disponibles ; il ne définit pas une allergie clinique.",
               charts.top_allergens(df, common, metric=controls["metric"], top_n=controls["top_n"], selected_allergen=selected), "top-allergens", "PANEL COMMUN",
               lecture=("Une barre par allergène ; longueur : fréquence de détection. Les traits fins indiquent l’incertitude statistique (IC 95 %)." if is_frequency else
                        f"Une barre par allergène ; longueur : IgE {metric_word} dans les valeurs observées, en unités propres à chaque technologie."),
               insight=chart_takeaway("top-allergens", df=df, ds=ds, controls=controls),
               caution="Le classement porte sur les données observées de la sélection, pas sur la fréquence des allergies dans la population générale."),
-        interpretation("Une fréquence globale ne montre pas comment les allergènes se combinent chez un même patient."),
+        interpretation("La fréquence d’un allergène ne dit pas avec quels autres signaux il apparaît chez un même patient."),
         story_question("Les patients présentent-ils les mêmes combinaisons de signaux ?",
-                       "Le nombre de détections décrit l’étendue d’un profil ; la carte patient × allergène montre sa composition.", label="2 · VUE PATIENT"),
-        html.Div([
-            metric("DÉTECTIONS · MÉDIANE", number(median, 1), "sur le panel commun", True),
-            metric("50 % CENTRAUX · Q1–Q3", f"{number(q1)}–{number(q3)}" if len(count) else "—", "dispersion du nombre de détections"),
-            metric("PROFILS COMPLETS", number(len(count)), f"sur {number(len(df))} patients sélectionnés"),
-        ], className="metrics-row three"),
+                       "Deux patients avec le même nombre de détections peuvent présenter des combinaisons entièrement différentes.", label="2 · VUE PATIENT"),
+        exploration_section("Retrouver la distribution et ses repères chiffrés", [
         panel("Combien de signaux retrouve-t-on chez un patient ?",
               "Comparer la dispersion, plutôt que résumer tous les patients par une seule moyenne.",
               charts.common_count_histogram(df), "sensitivity-hist",
               lecture="Horizontal : détections sur le panel commun ; vertical : effectifs. Pointillés : médiane ; bande claire : Q1–Q3.",
               insight=chart_takeaway("sensitivity-hist", df=df, ds=ds),
-              caution="Seuls les panels complets sont comptés. Deux patients ayant le même total peuvent détecter des allergènes différents."),
+              caution="Seuls les panels complets sont comptés. Deux patients ayant le même total peuvent détecter des allergènes différents.")
+        ]),
         panel("Quels signaux se combinent chez les mêmes patients ?",
               "La carte complète le total de détections en montrant où se trouvent les signaux, patient par patient.",
               charts.patient_heatmap(plotted, common, max_patients=120, selected_allergen=selected, sort_by=controls["heatmap_sort"]), "patient-heatmap", "ÉCHANTILLON ≤ 120 PATIENTS",
@@ -226,7 +223,7 @@ def clinical(df, ds, controls, **_):
             note("Ce que nous ne pouvons pas faire", "Transformer un traitement ou une somme d’IgE en score de sévérité. Un signal biologique n’est pas un diagnostic.", "warning"),
         ], className="clinical-contrast two-columns equal"),
         story_question(f"Les détections diffèrent-elles selon {clinical_factor} ?",
-                       "Nous distinguons d’abord les réponses Oui, Non et inconnues, puis comparons les fréquences uniquement dans les groupes renseignés."),
+                       "Le statut clinique inconnu est exclu du calcul Oui/Non. Pour chaque allergène, le dénominateur est le nombre de mesures IgE effectivement disponibles."),
         html.Div([
             metric("OUI / PRÉSENT", number(positive), CLINICAL[outcome], True),
             metric("NON / ABSENT", number(negative), "groupe de comparaison"),
@@ -238,7 +235,8 @@ def clinical(df, ds, controls, **_):
               charts.clinical_differential(df, outcome, ds.common_allergens), "clinical-difference", badge="LIEN OBSERVÉ ≠ CAUSE DÉMONTRÉE",
               lecture="Chaque barre mesure l’écart Oui − Non, en points de pourcentage. À droite : plus fréquent dans Oui ; à gauche : plus fréquent dans Non.",
               insight=chart_takeaway("clinical-difference", df=df, ds=ds, controls=controls),
-              caution="Comparaison descriptive, sans ajustement pour l’âge, le sexe ou la technologie. Les inconnus sont exclus et chaque allergène conserve son dénominateur observé."),
+              caution="Différences descriptives non ajustées : âge, sexe, technologie et données cliniques manquantes peuvent influencer les écarts. IgE > 0 est un seuil technique de lecture, pas un diagnostic."),
+        html.P("Exemple illustratif fixé à l’avance : Ara h 2, une composante de l’arachide. Le choix ne découle pas d’un classement automatique des plus grands écarts ; il sert à expliquer comment lire une comparaison.", className="context-caption"),
         example_block,
         exploration_section("Composition clinique et caractéristiques croisées", [
             panel("La clinique renseignée se répartit-elle de la même façon ?",
@@ -274,7 +272,7 @@ def profiles(df, ds, model, cross, controls, reference_frame, **_):
     platform = model.platform_cramers_v
     platform_message = (
         f"V de Cramér = {number(platform, 3)} sur le modèle source : le lien avec la technologie est faible dans cette solution. "
-        "Les groupes ne semblent donc pas refléter uniquement le choix de la puce."
+        "Cela ne suffit toutefois pas à exclure un effet de technologie ou de recrutement."
         if np.isfinite(platform) and platform < .1 else
         f"V de Cramér = {number(platform, 3)} sur le modèle source. La composition par technologie doit être prise en compte pour interpréter cette solution."
     )
@@ -286,6 +284,8 @@ def profiles(df, ds, model, cross, controls, reference_frame, **_):
                      f"Chaque patient est décrit par {len(ds.common_allergens)} mesures simultanément. Regardons maintenant toute sa signature, au lieu de comparer les allergènes séparément."),
         story_question("Pourquoi regrouper les profils ?",
                        "Pour rapprocher les patients dont les signatures IgE se ressemblent. Les informations cliniques ne servent pas à former les groupes ; elles permettent ensuite de les décrire."),
+        interpretation("KMeans regroupe les profils à partir des 91 mesures IgE ; la PCA sert à les représenter sur deux axes. Ce ne sont pas des catégories diagnostiques.", label="COMMENT SONT CONSTRUITS LES GROUPES"),
+        exploration_section("Pourquoi KMeans, cette standardisation et ce nombre de groupes ?", [
         method_decision("3", "Regarder les 91 mesures ensemble",
                         f"La transformation log1p réduit le poids des grandes valeurs. La standardisation {scaling} met les mesures sur une échelle de travail commune.",
                         steps=[("91 mesures", "panel commun · cas complets"), ("log1p", "log(1 + IgE)"),
@@ -305,44 +305,51 @@ def profiles(df, ds, model, cross, controls, reference_frame, **_):
             takeaway(f"Parmi les solutions testées, {model.best_k} groupes donnent la meilleure séparation selon ce critère. Cela décrit une structure statistique, pas des catégories médicales."),
             html.P(f"Cohorte source : {number(len(model.labels))} patients complets. Scores calculés sur le même échantillon fixe de {number(model.scores.sample_n.iloc[0])} patients. "
                    f"Solution affichée : K = {model.k}, silhouette {number(score, 3)}. Explore permet de changer K et la standardisation.", className="chart-footnote"),
-        ], className="chart-panel model-choice"),
+        ], className="chart-panel model-choice")
+        ]),
         panel("Des groupes de profils proches apparaissent-ils ?",
               "La carte PCA situe les patients et permet de voir comment les groupes se répartissent dans une projection simplifiée.",
               pca_figure, "pca-chart", "PCA · CARTE DES PROFILS",
               lecture="Un point représente un patient ; sa couleur indique son groupe et sa forme sa technologie. En Explore, le lasso sélectionne une région de la carte.",
               insight=chart_takeaway("pca-chart", df=df, ds=ds, model=model),
               caution=f"Les deux axes ne résument que {number(100 * sum(model.explained_variance[:2]), 1)} % de la variation des mesures. Une proximité sur la carte ne constitue pas une proximité clinique démontrée."),
-        story_question("Qu’est-ce qui distingue réellement ces groupes ?",
-                       "Les empreintes montrent quelles mesures contribuent à leurs différences. Leur composition clinique peut ensuite être examinée dans les détails."),
+        story_question("Quels signaux IgE distinguent les groupes ?",
+                       "Les empreintes décrivent leur signature biologique, avant d’examiner la clinique renseignée."),
         panel("Quels allergènes caractérisent les groupes affichés ?",
               "L’empreinte donne un contenu biologique aux groupes, au-delà de leur position sur la carte.",
               charts.cluster_fingerprints(standardized.loc[eligible], model.labels.reindex(eligible)), "cluster-fingerprints",
               lecture="Lignes : groupes ; colonnes : 25 allergènes caractéristiques du modèle source. Turquoise : moyenne standardisée positive ; violet : négative.",
               insight=chart_takeaway("cluster-fingerprints", df=df, ds=ds, model=model),
               caution="Les moyennes suivent la sélection affichée. Les couleurs décrivent des mesures transformées, sans seuil de diagnostic ni ordre de gravité."),
+        story_question("Ces groupes présentent-ils des caractéristiques cliniques différentes ?",
+                       "Décrivons les informations disponibles après la création des groupes, sans utiliser la clinique pour les construire."),
+        exploration_section("Clinique détaillée du groupe sélectionné", [
+        html.Div([html.H3(f"Quelle clinique est renseignée dans le groupe {selected or '—'} ?"),
+                      cohort_metrics(shown, ds),
+                      html.Div([metric(CLINICAL[column], f"{number(prevalence(shown, column)[0], 1)} %" if prevalence(shown, column)[1] else "—",
+                                       f"Oui parmi {number(prevalence(shown, column)[1])} patients renseignés") for column in CLINICAL], className="metrics-row compact"),
+                      takeaway(chart_takeaway("profile-summary", df=shown, ds=ds, model=model))], className="profile-summary"),
+        ]),
+        cluster_clinical_table(df),
+        exploration_section("Les groupes sont-ils liés à la technologie de mesure ?", [
         story_question("Ces groupes sont-ils simplement dus aux technologies de mesure ?",
                        "Vérifier leur composition par puce aide à repérer un effet technique qui pourrait se faire passer pour une différence biologique."),
         panel("Chaque groupe mélange-t-il plusieurs technologies ?",
-              "La composition visible complète le V de Cramér : un indicateur de lien entre groupe et technologie, proche de zéro lorsque ce lien est faible.",
+              "Cette vérification aide à distinguer un profil biologique apparent d’un possible effet lié aux plateformes.",
               charts.cluster_platform_composition(df), "cluster-platform",
               lecture="Une barre par groupe ; les segments colorés indiquent la part de chaque technologie dans les patients affichés.",
               insight=chart_takeaway("cluster-platform", df=df, ds=ds, model=model),
-              caution="La standardisation par technologie réduit certaines différences mais peut aussi atténuer des différences de population. Elle ne garantit pas une harmonisation clinique."),
-        interpretation(platform_message),
-        exploration_section("Allergènes caractéristiques et clinique d’un groupe", [
-            html.P(f"Groupe décrit : {selected or 'aucun'}. En Explore, choisir un profil ou une zone de la PCA. Les autres filtres restent actifs.", className="context-caption"),
+              caution="La standardisation n’élimine ni les différences de calibration ni les biais de recrutement. Le V de Cramér faible ne prouve pas l’absence d’effet de plateforme."),
+        interpretation(platform_message)
+        ]),
+        exploration_section("Comparer en détail un groupe à la cohorte", [
             panel(f"Quelles détections distinguent le groupe {selected or '—'} ?",
                   "Comparer le groupe retenu à la population avant sélection de profil ou lasso, en conservant les autres filtres.",
                   charts.cluster_excess(reference_frame.loc[reference_frame.cluster.ne("Non attribué")], ds.common_allergens,
                                         selected_cluster=selected, selected_df=df), "cluster-excess",
                   lecture="Une barre par allergène ; écart de fréquence groupe − population de référence, en points de pourcentage.",
                   insight=chart_takeaway("cluster-excess", df=df, ds=ds, model=model, reference_frame=reference_frame, selected_cluster=selected),
-                  caution="Le groupe appartient à la référence : cette comparaison descriptive n’oppose pas deux populations indépendantes."),
-            html.Div([html.H3(f"Quelle clinique est renseignée dans le groupe {selected or '—'} ?"),
-                      cohort_metrics(shown, ds),
-                      html.Div([metric(CLINICAL[column], f"{number(prevalence(shown, column)[0], 1)} %" if prevalence(shown, column)[1] else "—",
-                                       f"Oui parmi {number(prevalence(shown, column)[1])} patients renseignés") for column in CLINICAL], className="metrics-row compact"),
-                      takeaway(chart_takeaway("profile-summary", df=shown, ds=ds, model=model))], className="profile-summary"),
+                  caution="Le groupe appartient à la référence : cette comparaison descriptive n’oppose pas deux populations indépendantes.")
         ]),
         exploration_section("Reproductibilité et limites de la méthode", [
             note("Un modèle fixe pour une exploration cohérente", model.method),
@@ -353,6 +360,30 @@ def profiles(df, ds, model, cross, controls, reference_frame, **_):
                             "#conclusions", "Distinguer les constats et les limites",
                             "Ces groupes rendent les profils IgE plus lisibles. Leur portée clinique reste à examiner."),
     ]
+
+
+
+def cluster_clinical_table(df):
+    """Clinical status frequencies per displayed cluster, excluding unknown responses."""
+    assigned = df.loc[df.cluster.ne("Non attribué")]
+    labels = sorted(assigned.cluster.dropna().unique(), key=str)
+    if not labels:
+        return note("Aucun groupe attribué", "Aucun patient doté d’un profil complet dans cette sélection.")
+    headers = [html.Th("Groupe · effectif")] + [html.Th(title) for title in CLINICAL.values()]
+    rows = []
+    for label in labels:
+        cohort = assigned.loc[assigned.cluster.eq(label)]
+        cells = [html.Td(f"{label} · n = {number(len(cohort))}")]
+        for key in CLINICAL:
+            value, known = prevalence(cohort, key)
+            cells.append(html.Td(f"{number(value, 1)} % (n={number(known)})" if known else "Non calculable (n=0)"))
+        rows.append(html.Tr(cells))
+    return html.Section([
+        html.H3("Les manifestations cliniques diffèrent-elles entre les groupes ?"),
+        html.P("Pour chaque groupe, proportion de réponses Oui parmi les seules réponses Oui/Non. Le n de chaque cellule est le dénominateur clinique connu.", className="context-caption"),
+        html.Div(html.Table([html.Thead(html.Tr(headers)), html.Tbody(rows)], className="data-table"), className="table-scroll"),
+        html.P("Ces pourcentages sont descriptifs, non ajustés et parfois calculés sur de petits sous-ensembles renseignés. Ils ne valident pas médicalement les groupes.", className="chart-footnote"),
+    ], className="chart-panel clinical-cluster-summary")
 
 
 def comparison_value(df, key):
@@ -422,8 +453,8 @@ def conclusions(df, ds, model, **_):
         ("established", "Ce que nous avons établi", "✓", [
             f"Les profils IgE diffèrent d’un patient à l’autre : les 50 % centraux comptent {number(q1)} à {number(q3)} détections sur le panel commun.",
             f"Les technologies imposent un périmètre commun : {len(ds.common_allergens)} allergènes sur les {len(ds.allergens)} présents dans le fichier.",
-            "Certaines détections diffèrent selon les informations cliniques renseignées, comme Ara h 2 selon les symptômes cutanés.",
-            "Regarder les 91 mesures ensemble fait apparaître des groupes de profils proches selon la méthode utilisée.",
+            "Les taux de détection peuvent différer selon les manifestations cliniques renseignées ; ces comparaisons restent descriptives et non ajustées.",
+            "L’analyse des 91 mesures fait apparaître des groupes exploratoires, à décrire biologiquement puis à confronter aux informations cliniques connues.",
         ]),
         ("suggested", "Ce que cela suggère", "→", [
             "Les profils IgE contiennent plus d’information qu’un seul statut sensibilisé / non sensibilisé.",
@@ -445,7 +476,7 @@ def conclusions(df, ds, model, **_):
                               className=f"conclusion-level {kind}") for kind, title, symbol, items in groups], className="conclusion-levels"),
         html.Div([html.Span("LA RÉPONSE À NOTRE QUESTION", className="eyebrow"),
                   html.H2("Des centaines de mesures IgE deviennent des profils plus lisibles."),
-                  html.P("Allergy Atlas aide un professionnel de santé à explorer une cohorte, comparer des sous-populations et repérer des signaux à approfondir."),
+                  html.P("Allergy Atlas est une application d’exploration de cohorte pour les allergologues impliqués dans la recherche clinique : elle aide à comparer les signatures IgE et à générer des hypothèses, sans guider la prise en charge individuelle."),
                   html.P("Ces résultats restent exploratoires : ils ne constituent ni un diagnostic ni une prédiction individuelle de sévérité.")], className="closing-statement"),
         exploration_section("Sources, limites et prolongements", [
             note("Prochaine étape clinique", "Disposer d’une cible clinique validée et documenter les biais de recrutement permettrait d’évaluer la pertinence des profils sur une cohorte indépendante."),
@@ -453,7 +484,7 @@ def conclusions(df, ds, model, **_):
                      html.Li("Codages : acc-dictionnaire-final.xls et dictionnaire-acc-english.pdf. Severe_Allergy est documentée mais absente du CSV."),
                      html.Li("52 mesures négatives non documentées sont masquées ; les mesures et informations inconnues ne deviennent jamais zéro."),
                      html.Li("Le panel commun n’efface pas les différences d’unités, de calibration et de détection entre technologies."),
-                     html.Li("Les données cliniques sont incomplètes ; les comparaisons restent descriptives et sans ajustement."),
+                     html.Li("Les données cliniques sont incomplètes ; les écarts ne sont pas ajustés pour l’âge, le sexe ni la technologie et ne prouvent aucune causalité."),
                      html.Li("Les régions et départements sont pseudonymisés ; aucune localisation réelle n’est inférée.")], className="source-list"),
         ]),
         html.Div([html.A("À vous d’explorer les cohortes →", href="#explorer", className="primary-button inline-button"),
