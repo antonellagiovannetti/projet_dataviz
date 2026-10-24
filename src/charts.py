@@ -628,11 +628,82 @@ def cluster_excess(df: pd.DataFrame, allergens: Sequence[str], selected_cluster:
         selected_cluster = str(df.cluster.mode().iloc[0])
     cohort = df if selected_df is None else selected_df
     selected = cohort.loc[cohort.cluster.astype(str).eq(str(selected_cluster))]
-    fig = _difference(selected, df, allergens, threshold, top_n,
-                      (f"Profil {selected_cluster}", "Population"), interval=False,
+    # The reference population must never include members of the selected
+    # profile, even when selected_df supplies a narrower focal population.
+    remainder = df.loc[~df.cluster.astype(str).eq(str(selected_cluster))]
+    fig = _difference(selected, remainder, allergens, threshold, top_n,
+                      (f"Profil {selected_cluster}", "Reste de la cohorte filtrée"), interval=False,
                       selected_allergen=selected_allergen)
-    if not selected.empty:
-        fig.update_xaxes(title="Écart au total (points de pourcentage)")
+    if not selected.empty and not remainder.empty:
+        fig.update_xaxes(title="Écart profil − reste (points de pourcentage)")
+    return fig
+
+
+def profile_clinical_comparison(df: pd.DataFrame,
+                               selected_cluster: str | int | None = None) -> go.Figure:
+    """Four descriptive clinical rates for disjoint, globally filtered groups.
+
+    Each variable has its own Oui/Non denominator. Unknown-only variables keep
+    their counts and an explicit unavailable rate, with no point at zero.
+    Non-assigned patients belong to the remainder when they survive filtering.
+    """
+    if df.empty or "cluster" not in df:
+        return empty_figure("Aucun patient disponible dans ces filtres.")
+    if selected_cluster is None:
+        return empty_figure("Choisir un profil dans le menu, la PCA ou les barres cliniques.")
+    selected_mask = df.cluster.astype(str).eq(str(selected_cluster))
+    selected, remainder = df.loc[selected_mask], df.loc[~selected_mask]
+    if selected.empty:
+        return empty_figure("Le profil sélectionné est absent de ces filtres.")
+    if remainder.empty:
+        return empty_figure("Comparaison impossible : aucun autre patient dans ces filtres.")
+
+    variables = ("skin", "asthma", "rhinitis", "dermatitis")
+    labels = ("Symptômes cutanés", "Traitement de l’asthme",
+              "Traitement de la rhinite", "Traitement de la dermatite")
+    fig = go.Figure()
+    for members, name, color, symbol, offset, text_x, glyph in (
+        (selected, f"Profil {selected_cluster} (sélection)", INK, "circle", -.15, .46, "●"),
+        (remainder, "Reste de la cohorte filtrée", TEAL, "diamond", .15, .75, "◆"),
+    ):
+        rates, positions, custom = [], [], []
+        for row, (variable, label) in enumerate(zip(variables, labels)):
+            statuses = _column(members, variable)
+            known = int(statuses.isin(["Oui", "Non"]).sum())
+            yes = int(statuses.eq("Oui").sum())
+            no, unknown = known - yes, len(members) - known
+            rate = 100 * yes / known if known else None
+            rates.append(rate)
+            positions.append(row + offset)
+            custom.append([variable, label, name, yes, no, known, unknown, len(members)])
+            rate_label = f"{rate:.1f} %" if known else "n/d"
+            fig.add_annotation(
+                x=text_x, y=row, xref="paper", yref="y", showarrow=False,
+                text=f"{glyph} {rate_label} · {_fmt(known)} / {_fmt(unknown)}",
+                xanchor="left", yanchor="middle", font=dict(size=9, color=color),
+            )
+        fig.add_trace(go.Scatter(
+            x=rates, y=positions, mode="markers", name=name, customdata=custom,
+            marker=dict(color=color, symbol=symbol, size=7),
+            hovertemplate="<b>%{customdata[1]}</b><br>%{customdata[2]}"
+                          "<br>Oui : %{customdata[3]} / %{customdata[5]} connus (%{x:.1f} %)"
+                          "<br>Non : %{customdata[4]}"
+                          "<br>Inconnus exclus : %{customdata[6]}"
+                          "<br>Total du groupe : %{customdata[7]}<extra></extra>",
+        ))
+    _base(fig, 250, left=150, bottom=28)
+    fig.update_layout(
+        margin=dict(l=150, r=12, t=24, b=28), dragmode=False,
+        legend=dict(orientation="h", x=0, y=1.02, yanchor="bottom", font_size=9,
+                    itemclick=False, itemdoubleclick=False),
+    )
+    fig.add_annotation(x=.46, y=-.3, xref="paper", yref="paper", showarrow=False,
+                       text="Effectifs : connus / inconnus", xanchor="left",
+                       yanchor="top", font=dict(size=9, color=MUTED))
+    fig.update_xaxes(domain=[0, .40], range=[-4, 104], tickvals=[0, 50, 100],
+                     title="% de Oui", showgrid=True, fixedrange=True)
+    fig.update_yaxes(range=[3.5, -.5], tickvals=list(range(4)), ticktext=labels,
+                     showgrid=False, fixedrange=True, tickfont_size=9)
     return fig
 
 

@@ -1,6 +1,6 @@
 # Allergy Atlas
 
-**Explorer les profils IgE et leurs associations cliniques dans l'Allergen Chip Challenge (ACC)**  
+**Explorer les profils de détection IgE et leurs associations cliniques dans l'Allergen Chip Challenge (ACC)**
 Projet de Data Visualisation — Master 2 IA/Data — Dash / Plotly
 
 **Public cible :** allergologues impliqués dans la recherche clinique et chercheurs en allergologie.  
@@ -8,7 +8,7 @@ Projet de Data Visualisation — Master 2 IA/Data — Dash / Plotly
 
 ## Problématique
 
-**Comment les profils de sensibilisation IgE se structurent-ils dans ACC, et quels liens présentent-ils avec les manifestations cliniques disponibles ?**
+**Comment se structurent les profils de détection IgE dans la cohorte ACC, et quelles associations observe-t-on avec les informations cliniques disponibles ?**
 
 L'application répond à la question en deux étapes, accessibles dans deux onglets. Chaque onglet est conçu pour tenir sur un écran d'ordinateur sans défilement principal (cible : 1366 × 768 ou supérieur, navigateur à 100 %). Sur mobile, le défilement est autorisé pour la lisibilité.
 
@@ -16,10 +16,10 @@ L'application répond à la question en deux étapes, accessibles dans deux ongl
 
 | Onglet | Question | Fonctionnalités |
 | --- | --- | --- |
-| **01 — Identifier les profils IgE** | Quels profils biologiques peut-on observer ? | Distribution du nombre de détections, classement des allergènes, projection PCA et caractérisation biologique des groupes exploratoires |
-| **02 — Explorer les liens cliniques** | Ces profils sont-ils associés à certaines manifestations cliniques ? | Écart de détection Oui/Non selon l'information clinique choisie, fréquence de la caractéristique clinique par groupe, comparaison enfants/adultes, synthèse et limites |
+| **01 — Identifier les profils IgE** | Comment se structurent les profils de détection IgE ? | Distribution du nombre de détections, classement des allergènes, projection PCA et écarts de détection entre le profil sélectionné et les autres patients filtrés |
+| **02 — Explorer les liens cliniques** | Quelles associations observe-t-on avec les informations cliniques ? | Écart de détection Oui/Non, fréquence du statut clinique Oui par profil, caractérisation clinique du profil sélectionné face au reste de la cohorte filtrée, réponse et limites |
 
-La problématique reste affichée dans l'en-tête. Les deux onglets correspondent à ses deux sous-questions. Les groupes sont créés à partir des données biologiques **sans utiliser les variables cliniques** ; celles-ci servent seulement à caractériser les groupes a posteriori.
+La problématique reste affichée dans l'en-tête. Les deux onglets correspondent à ses deux sous-questions. Les groupes sont créés à partir des données biologiques **sans utiliser les variables cliniques** ; celles-ci servent seulement à caractériser les groupes a posteriori. Les groupes se différencient principalement par l'étendue de leurs détections IgE : ce sont des profils exploratoires, **pas des phénotypes cliniques établis**.
 
 ## Filtres et lecture
 
@@ -30,9 +30,15 @@ Un bandeau commun permet de choisir :
 - **Information clinique :** symptômes cutanés, traitements de l'asthme, de la rhinite ou de la dermatite ;
 - **Groupe clinique :** tous, Oui ou Non.
 
-Les résultats se recalculent selon la sélection ; l'effectif actif et le nombre d'observations cliniques exploitables sont indiqués. **Pour comparer Oui et Non**, conserver le filtre « Groupe clinique » sur « Tous » : choisir uniquement Oui ou Non retire l'autre groupe de comparaison. Les filtres n'entraînent pas de nouvel apprentissage de KMeans. Les détails des barres sont disponibles au survol.
+Les résultats se recalculent selon la sélection ; l'effectif actif et les nombres de statuts cliniques renseignés et inconnus sont indiqués. **Pour comparer Oui et Non**, conserver le filtre « Groupe clinique » sur « Tous » : choisir uniquement Oui ou Non retire l'autre groupe de comparaison. Ce filtre s'applique aussi à la caractérisation clinique : pour la variable ainsi filtrée, le taux de Oui, lorsqu'il est calculable, vaut alors 100 % ou 0 % par construction. Les filtres n'entraînent pas de nouvel apprentissage de KMeans.
 
-Les quatre indicateurs affichés sont : patients sélectionnés, nombre médian de détections sur le panel commun, profils exploitables et données cliniques renseignées (Oui/Non). Les pourcentages cliniques utilisent exclusivement les statuts connus, avec effectifs visibles au survol.
+Les menus « Allergène à suivre » et « Profil à explorer » offrent une alternative aux clics sur les graphiques. Une barre d'allergène sélectionne cet allergène ; un point PCA ou une barre de fréquence clinique par profil sélectionne le profil. Le bouton « Réinitialiser les filtres » rétablit les valeurs initiales et efface les sélections.
+
+Les quatre indicateurs affichés sont : « Patients dans les filtres », « Détections médianes / 91 », « Profils IgE complets » et « Statuts cliniques renseignés ». Le dernier porte sur l'information clinique choisie et indique aussi les inconnus.
+
+Le graphique « Qu'est-ce qui distingue le profil ? » compare les pourcentages de détection du profil aux **autres patients de la cohorte filtrée**, en excluant le profil du groupe de référence. Sans sélection explicite, il décrit le profil le plus nombreux, indiqué dans le sous-titre. Les patients sans profil attribué restent dans le groupe de référence ; chaque taux utilise uniquement les mesures IgE disponibles pour l'allergène concerné.
+
+Le graphique « Quel profil clinique accompagne le groupe sélectionné ? » nécessite une sélection de profil. Pour chacune des quatre variables — symptômes cutanés, traitement de l'asthme, traitement de la rhinite, traitement de la dermatite — il compare le profil au reste de la cohorte filtrée. **Le pourcentage de Oui est calculé parmi les seuls statuts Oui/Non renseignés, séparément pour chaque variable et chaque groupe.** Les effectifs renseignés et inconnus sont explicités ; le survol détaille les dénominateurs. Si aucun statut n'est renseigné, le taux est indisponible, jamais remplacé par 0 %. Les sélections vides ou les comparaisons impossibles produisent un message explicite.
 
 ## Données et règles scientifiques
 
@@ -40,9 +46,10 @@ Le CSV ACC contient **4 271 patients**, **256 colonnes**, dont **241 mesures IgE
 
 - La règle `IgE > 0` est un **seuil descriptif de détection dans l'application**, et non un diagnostic clinique de sensibilisation ou d'allergie.
 - Les valeurs biologiques non mesurées et les codes cliniques inconnus ne sont **pas assimilés à zéro ou à Non**.
-- Les profils exploratoires reposent sur les 91 mesures communes, transformées par `log1p`, standardisées selon les paramètres du modèle, puis utilisées par KMeans. La PCA fournit une représentation en deux dimensions ; elle **ne sert pas** à créer les groupes.
-- Les associations constatées sont **descriptives et non ajustées** : elles ne démontrent ni causalité ni facteur de risque indépendant.
-- La variable clinique `Severe_Allergy` n'est pas disponible dans le CSV exploité : l'application **ne prédit pas la sévérité**.
+- Le pipeline utilise les **cas complets sur les 91 allergènes communs**, une transformation `log1p`, puis une **standardisation par technologie**. KMeans est ajusté sur toutes ces dimensions pour **K de 2 à 8** ; le choix de K maximise la silhouette sur un échantillon fixe d'au plus 1 500 patients. La PCA fournit seulement une représentation en deux dimensions ; elle **ne sert pas** à créer les groupes. Les patients incomplets conservent un profil « Non attribué » et ne sont pas projetés.
+- La standardisation par technologie réduit les différences de moyenne et de variance entre puces ; elle ne constitue pas une calibration clinique des mesures.
+- Les variables de traitement décrivent un **traitement**, pas un diagnostic. La variable source `Sensitization` reste distincte des détections dérivées de `IgE > 0`.
+- **Associations descriptives : ces résultats ne constituent ni un diagnostic individuel ni une preuve de causalité.** Les comparaisons sont non ajustées et ne démontrent pas de facteur de risque indépendant.
 - La population ACC est spécifique et **non représentative de la population française** ; les fréquences affichées ne sont pas des estimations nationales de prévalence.
 
 ## Installation et lancement
@@ -84,14 +91,15 @@ src/data_loader.py      Chargement et validation du CSV
 src/preprocessing.py    Préparation des mesures, catégories et manquants
 src/metrics.py          Cohortes filtrées et indicateurs
 src/charts.py           Figures Plotly réutilisées
-src/clustering.py       Construction du modèle PCA / KMeans
+src/clustering.py       KMeans et projection PCA de visualisation
 src/insights.py         Résultats descriptifs et textes calculés
-data/                   CSV et dictionnaires ACC
-tests/                  Tests de structure, métriques, analyses et application historique
+data/raw/               CSV ACC utilisé par le chargeur
+data/dictionaries/      Dictionnaires ACC
+tests/                  Tests des données, analyses, graphiques et callbacks compacts
 README.md               Documentation du projet
 ```
 
-Le projet conserve des fichiers de référence de l'application à chapitres (`app_historique.py`, `pages/`, `components/` et certains callbacks). **Le point d'entrée à utiliser est `app.py`** ; ces modules secondaires ne sont pas nécessaires au parcours compact, sauf lorsqu'ils sont importés explicitement.
+**Le point d'entrée est `app.py`.** Ses imports utilisent les six modules `src/` décrits ci-dessus. Dash charge automatiquement les assets CSS : `assets/compact.css` définit la disposition compacte et `assets/style.css` reste nécessaire pour certaines règles globales de typographie et de contrôles.
 
 ## Tests et dépannage
 
@@ -99,15 +107,15 @@ Le projet conserve des fichiers de référence de l'application à chapitres (`a
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Les tests existants couvrent principalement les traitements et certains composants de l'application à chapitres. La cohérence fonctionnelle de la version compacte doit aussi être vérifiée manuellement : changer chaque filtre, vérifier les dénominateurs, tester les sélections vides, basculer entre onglets et contrôler l'absence de scroll sur la résolution utilisée pour la soutenance.
+Les tests couvrent les données et leurs manquants, les dénominateurs des comparaisons, les groupes de référence disjoints, les états vides et les callbacks de la version compacte via des requêtes Dash réelles. Ils vérifient notamment les deux onglets, les filtres, les sélections et la réinitialisation. La vérification dans un navigateur complète ces tests : survols, lisibilité et absence de défilement principal à la résolution utilisée pour la soutenance.
 
 - **`ModuleNotFoundError` :** installer les dépendances avec le même interpréteur Python que celui utilisé pour lancer `app.py`.
 - **Port 8050 occupé :** arrêter le serveur précédent ou définir `PORT`.
-- **CSV introuvable :** vérifier les données du dossier `data/` ; ne pas renommer les fichiers attendus par le chargeur.
+- **CSV introuvable :** vérifier `data/raw/allergenchipchallenge-data-corrected-final-hdh-sfa.csv`, utilisé par `src/data_loader.py`.
 - **Changements invisibles :** arrêter le serveur, relancer puis rafraîchir le navigateur.
 
 ## Démonstration orale — 10 minutes
 
-Présenter la problématique, expliquer pourquoi les mesures des trois puces doivent être comparées sur un panel commun, puis montrer l'onglet 1 (diversité des détections, signaux dominants et groupes biologiques). Passer ensuite à l'onglet 2 pour examiner les différences selon une caractéristique clinique, rappeler les effectifs connus et conclure sur les limites. L'objectif est d'expliquer **ce que les données permettent d'observer**, pas de démontrer une prédiction clinique de sévérité.
+Présenter la problématique, expliquer pourquoi les mesures des trois puces sont comparées sur un panel commun, puis montrer l'onglet 1 : étendue des détections, allergènes les plus détectés et groupes exploratoires. Sélectionner un profil et examiner ses écarts par rapport aux autres patients filtrés. Passer ensuite à l'onglet 2 pour explorer les associations avec les informations cliniques, comparer les quatre variables du profil au reste de la cohorte et rappeler les effectifs renseignés et inconnus. Conclure sur les limites des associations descriptives.
 
 **Sources :** Société Française d'Allergologie / Health Data Hub — Allergen Chip Challenge (ACC). Les dictionnaires et le fichier CSV accompagnent le projet.

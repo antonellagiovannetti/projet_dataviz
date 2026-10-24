@@ -11,7 +11,7 @@ from src.data_loader import load_data
 from src.clustering import get_profiles
 from src.charts import (
     common_count_histogram, top_allergens, clinical_differential,
-    pca_scatter, cluster_excess, cohort_difference, empty_figure,
+    pca_scatter, cluster_excess, profile_clinical_comparison, empty_figure,
 )
 from src.insights import clinical_focus
 from src.metrics import filter_cohort, cohort_difference as difference_statistics
@@ -23,8 +23,8 @@ MODEL = get_profiles()
 ALLERGENS = DS.common_allergens
 FULL = MODEL.frame
 OUTCOMES = {
-    'skin': 'Symptômes cutanés', 'asthma': 'Traitement asthme',
-    'rhinitis': 'Traitement rhinite', 'dermatitis': 'Traitement dermatite',
+    'skin': 'Symptômes cutanés', 'asthma': 'Traitement de l’asthme',
+    'rhinitis': 'Traitement de la rhinite', 'dermatitis': 'Traitement de la dermatite',
 }
 app = Dash(__name__, title='Allergy Atlas | Explorer une cohorte en allergologie',
            assets_folder=str(ROOT / 'assets'))
@@ -95,8 +95,8 @@ app.layout = html.Div([
     ], className='compact-header'),
     html.Div([
         html.Strong('Question de recherche'),
-        html.Span('Comment les profils de sensibilisation IgE se structurent-ils dans ACC, '
-                  'et quels liens présentent-ils avec les manifestations cliniques disponibles ?'),
+        html.Span('Comment se structurent les profils de détection IgE dans la cohorte ACC, '
+                  'et quelles associations observe-t-on avec les informations cliniques disponibles ?'),
     ], className='compact-question'),
     html.Div([
         html.Div([
@@ -129,8 +129,8 @@ app.layout = html.Div([
         html.Div([
             tile('Patients dans les filtres', 'compact-patients'),
             tile(f'Détections médianes / {len(ALLERGENS)}', 'compact-median'),
-            tile('Profils analysables', 'compact-complete'),
-            tile('Données cliniques Oui / Non', 'compact-known'),
+            tile('Profils IgE complets', 'compact-complete'),
+            tile('Statuts cliniques renseignés', 'compact-known'),
         ], className='compact-kpis'),
         html.Div(id='compact-synthesis', children=[
             panel('1 · Combien de détections par patient ?', graph('compact-count'),
@@ -138,7 +138,7 @@ app.layout = html.Div([
             panel('2 · Quels allergènes sont les plus détectés ?', graph('compact-top'),
                   'Cliquer une barre pour suivre cet allergène'),
             panel('3 · Quels profils se ressemblent ?', graph('compact-pca'),
-                  'Un point = un patient · proximité ≈ profils similaires · cliquer un point'),
+                  'Un point = un patient · groupes surtout différenciés par l’étendue des détections'),
             panel('4 · Qu’est-ce qui distingue le profil ?', graph('compact-excess'),
                   subtitle_id='compact-excess-subtitle'),
         ], className='compact-grid'),
@@ -146,9 +146,9 @@ app.layout = html.Div([
             panel('1 · Quels liens avec l’information clinique ?', graph('compact-clinical'),
                   subtitle_id='compact-clinical-subtitle'),
             panel('2 · Les groupes diffèrent-ils cliniquement ?', graph('compact-cluster-clinical'),
-                  'Tous les profils des filtres · cliquer un profil'),
-            panel('3 · Les signatures IgE diffèrent-elles selon l’âge ?', graph('compact-cohort'),
-                  subtitle_id='compact-cohort-subtitle'),
+                  'Taux parmi les statuts renseignés · connus et inconnus par profil · cliquer un profil'),
+            panel('3 · Quel profil clinique accompagne le groupe sélectionné ?', graph('compact-profile-clinical'),
+                  subtitle_id='compact-profile-clinical-subtitle'),
             panel('4 · Réponse et limites',
                   html.Div(id='compact-takeaway', className='compact-takeaway',
                            **{'aria-live': 'polite'}), 'Synthèse de la vue actuelle'),
@@ -183,31 +183,31 @@ def groups(frame):
     Output('compact-outcome', 'value'), Output('compact-status', 'value'),
     Output('compact-focus-allergen', 'value'), Output('compact-focus-profile', 'value'),
     Output('compact-top', 'clickData'), Output('compact-clinical', 'clickData'),
-    Output('compact-excess', 'clickData'), Output('compact-cohort', 'clickData'),
+    Output('compact-excess', 'clickData'),
     Output('compact-pca', 'clickData'), Output('compact-cluster-clinical', 'clickData'),
     Input('compact-reset', 'n_clicks'),
     Input('compact-pop', 'value'), Input('compact-chip', 'value'),
     Input('compact-outcome', 'value'), Input('compact-status', 'value'),
     Input('compact-top', 'clickData'), Input('compact-clinical', 'clickData'),
-    Input('compact-excess', 'clickData'), Input('compact-cohort', 'clickData'),
+    Input('compact-excess', 'clickData'),
     Input('compact-pca', 'clickData'), Input('compact-cluster-clinical', 'clickData'),
     State('compact-focus-allergen', 'value'), State('compact-focus-profile', 'value'),
     prevent_initial_call=True,
 )
-def controls(reset, pop, chip, outcome, status, top, clinical, excess, age,
+def controls(reset, pop, chip, outcome, status, top, clinical, excess,
              pca, cluster_clinical, selected_allergen, selected_profile):
-    unchanged = [no_update] * 12
+    unchanged = [no_update] * 11
     triggered = ctx.triggered_prop_ids
     if 'compact-reset.n_clicks' in triggered:
-        return ('all', 'all', 'skin', 'all', None, None) + (None,) * 6
+        return ('all', 'all', 'skin', 'all', None, None) + (None,) * 5
     if any(f'{name}.value' in triggered for name in
            ['compact-pop', 'compact-chip', 'compact-outcome', 'compact-status']):
         # A profile belongs to the previous cohort. Allergen focus remains a comparison aid.
         unchanged[5] = None
-        unchanged[6:] = [None] * 6
+        unchanged[6:] = [None] * 5
         return tuple(unchanged)
     events = {'compact-top': top, 'compact-clinical': clinical, 'compact-excess': excess,
-              'compact-cohort': age, 'compact-pca': pca,
+              'compact-pca': pca,
               'compact-cluster-clinical': cluster_clinical}
     event_id = ctx.triggered_id
     event = events.get(event_id)
@@ -227,7 +227,7 @@ def controls(reset, pop, chip, outcome, status, top, clinical, excess, age,
         unchanged[4] = custom[0]
     if unchanged[4] is not no_update or unchanged[5] is not no_update:
         # Consume events so clicking the same mark after clearing focus fires again.
-        unchanged[6:] = [None] * 6
+        unchanged[6:] = [None] * 5
     return tuple(unchanged)
 
 
@@ -236,10 +236,10 @@ def controls(reset, pop, chip, outcome, status, top, clinical, excess, age,
 def show_tab(tab):
     if tab == 'profiles':
         return {'display': 'none'}, {}, [
-            html.Strong('Étape 2 / 2 · Quels liens entre profils IgE et manifestations cliniques ?'),
+            html.Strong('Étape 2 / 2 · Quelles associations avec les informations cliniques disponibles ?'),
         ]
     return {}, {'display': 'none'}, [
-        html.Strong('Étape 1 / 2 · Comment se structurent les profils IgE ?'),
+        html.Strong('Étape 1 / 2 · Comment se structurent les profils de détection IgE ?'),
     ]
 
 
@@ -265,15 +265,16 @@ def clinical_profiles(frame, outcome, selected_profile):
     for group in groups(frame):
         members = frame.loc[frame.cluster.astype(str).eq(group)]
         known = members.loc[members[outcome].isin(['Oui', 'Non'])]
-        if len(known):
-            yes = int(known[outcome].eq('Oui').sum())
-            rates.append((group, 100 * yes / len(known), len(known), yes, len(members) - len(known)))
+        yes = int(known[outcome].eq('Oui').sum())
+        rates.append((group, 100 * yes / len(known) if len(known) else None,
+                      len(known), yes, len(members) - len(known)))
     if not rates:
-        return empty_figure('Aucun profil avec statut clinique Oui / Non renseigné.')
+        return empty_figure('Aucun profil disponible dans ces filtres.')
     selected = [r[0] == selected_profile for r in rates]
     fig = go.Figure(go.Bar(
-        x=[f'Profil {r[0]}' + (' (sélection)' if focus else '') for r, focus in zip(rates, selected)],
-        y=[r[1] for r in rates], text=[f'{r[1]:.1f} %' for r in rates],
+        x=[f'Profil {r[0]}' + (' (sélection)' if focus else '')
+           + f'<br>{r[2]} connus · {r[4]} inconnus' for r, focus in zip(rates, selected)],
+        y=[r[1] for r in rates], text=[f'{r[1]:.1f} %' if r[1] is not None else '' for r in rates],
         textposition='outside', cliponaxis=False,
         marker=dict(color=['#182c47' if focus else '#198a85' for focus in selected],
                     opacity=[1 if focus or not selected_profile else .35 for focus in selected],
@@ -286,7 +287,10 @@ def clinical_profiles(frame, outcome, selected_profile):
     fig.update_layout(template='plotly_white', paper_bgcolor='rgba(0,0,0,0)',
                       plot_bgcolor='rgba(0,0,0,0)', clickmode='event', dragmode=False,
                       yaxis=dict(title='% de Oui parmi les connus', range=[0, 110], fixedrange=True),
-                      xaxis=dict(title='Profils des filtres · inconnus exclus', fixedrange=True))
+                      xaxis=dict(fixedrange=True, automargin=True))
+    for row, label in zip(rates, fig.data[0].x):
+        if row[1] is None:
+            fig.add_annotation(x=label, y=5, text='n/d', showarrow=False)
     return fig
 
 
@@ -298,40 +302,43 @@ def takeaway(frame, detail, outcome, selected_allergen, selected_profile):
     if evidence['available']:
         lead = 'Allergène suivi' if selected_allergen else 'Plus grand écart absolu Oui − Non'
         rows.append(html.P(
-            f"{lead} : {evidence['label']}. Détection IgE pour « {OUTCOMES[outcome]} » : "
-            f"{evidence['yes_rate']:.1f} % dans le groupe Oui "
-            f"({evidence['yes_detected']} / {evidence['yes_n']} mesures), "
-            f"contre {evidence['no_rate']:.1f} % dans le groupe Non "
-            f"({evidence['no_detected']} / {evidence['no_n']}). "
-            f"Écart : {evidence['difference']:+.1f} points."
+            f"{lead} : {evidence['label']} ({evidence['difference']:+.1f} points). "
+            f"Détection : {evidence['yes_rate']:.1f} % chez les Oui "
+            f"({evidence['yes_detected']}/{evidence['yes_n']} mesures) ; "
+            f"{evidence['no_rate']:.1f} % chez les Non "
+            f"({evidence['no_detected']}/{evidence['no_n']}).",
+            title=f"Information clinique : {OUTCOMES[outcome]}",
         ))
     else:
         rows.append(html.P(evidence['reason']))
     if selected_profile and len(detail):
-        signature = difference_statistics(detail, frame, ALLERGENS).dropna(subset=['difference'])
+        rest = frame.loc[~frame.cluster.astype(str).eq(selected_profile)]
+        signature = difference_statistics(detail, rest, ALLERGENS).dropna(subset=['difference'])
         median = detail.common_count.dropna().median()
-        text = f'Profil {selected_profile} : {100 * len(detail) / len(frame):.1f} % des patients des filtres'
+        text = f'Profil {selected_profile} : {100 * len(detail) / len(frame):.1f} % des patients filtrés'
         if np.isfinite(median):
             text += f' · médiane {median:.0f} détections'
         if len(signature):
             row = signature.iloc[0]
             text += (f" · {row.allergen.replace('_', ' ')} : {row.difference:+.1f} points "
-                     'par rapport à la sélection filtrée')
+                     'par rapport aux autres patients filtrés')
         rows.append(html.P(text + '.'))
-    rows.append(html.P(f'Information clinique connue : {number(known)} / {number(len(detail))} '
-                       f'· inconnus exclus des taux : {number(len(detail) - known)}.'))
+    rows.append(html.P(f'{OUTCOMES[outcome]} : {number(known)} connus '
+                       f'· {number(len(detail) - known)} inconnus exclus des taux.'))
     if len(detail) and detail[outcome].nunique() == 1 and detail[outcome].iloc[0] in ['Oui', 'Non']:
         rows.append(html.P('Un seul statut clinique reste visible. Choisir « Tous » pour comparer Oui et Non.'))
-    rows.append(html.P('Écarts descriptifs et groupes exploratoires : ni diagnostic, ni causalité, ni prédiction de sévérité.'))
+    rows.append(html.P('Associations descriptives : ces résultats ne constituent ni un diagnostic individuel ni une preuve de causalité.'))
     rows.append(html.Details([
         html.Summary('Méthode et limites de cette vue'),
         html.P('IgE > 0 est un seuil descriptif. Les dénominateurs excluent les mesures manquantes. '
                'Sans allergène choisi, le texte décrit le plus grand écart absolu calculable parmi les '
                'allergènes communs ; ce classement ne constitue pas un test statistique. '
-               'La signature compare le profil au total filtré, qui inclut ce profil. '
+               'La signature compare le profil aux autres patients filtrés, y compris les profils non attribués. '
+               'Les groupes se différencient surtout par l’étendue des détections IgE ; '
+               'ce ne sont pas des phénotypes cliniques établis. '
                'Les traitements sont des informations déclarées, pas des diagnostics. '
-               'Les groupes et les coordonnées PCA restent ceux du modèle initial.'),
-    ]))
+               f'{MODEL.method} Les groupes et les coordonnées PCA restent ceux du modèle initial.'),
+    ], className='compact-method'))
     return rows
 
 
@@ -341,10 +348,10 @@ def takeaway(frame, detail, outcome, selected_allergen, selected_profile):
     Output('compact-selection', 'children'), Output('compact-count', 'figure'),
     Output('compact-top', 'figure'), Output('compact-clinical', 'figure'),
     Output('compact-takeaway', 'children'), Output('compact-pca', 'figure'),
-    Output('compact-excess', 'figure'), Output('compact-cohort', 'figure'),
+    Output('compact-excess', 'figure'), Output('compact-profile-clinical', 'figure'),
     Output('compact-cluster-clinical', 'figure'), Output('compact-focus-profile', 'options'),
     Output('compact-excess-subtitle', 'children'), Output('compact-clinical-subtitle', 'children'),
-    Output('compact-cohort-subtitle', 'children'),
+    Output('compact-profile-clinical-subtitle', 'children'),
     Input('compact-pop', 'value'), Input('compact-chip', 'value'),
     Input('compact-outcome', 'value'), Input('compact-status', 'value'),
     Input('compact-focus-allergen', 'value'), Input('compact-focus-profile', 'value'),
@@ -385,16 +392,10 @@ def update(pop, chip, outcome, status, selected_allergen=None, selected_profile=
     excess = (cluster_excess(frame, ALLERGENS, selected_cluster=signature_group,
                              top_n=8, selected_allergen=selected_allergen)
               if signature_group else empty_figure('Aucun profil analysable dans ces filtres.'))
-    excess = resize(excess, revision, f'Profil {signature_group} − total filtré · dénominateurs IgE au survol')
-    child, adult = detail.loc[detail.age.lt(18)], detail.loc[detail.age.ge(18)]
-    age = (cohort_difference(child, adult, ALLERGENS, top_n=8, selected_allergen=selected_allergen)
-           if len(child) and len(adult) else empty_figure('Comparaison impossible : enfants et adultes requis.'))
-    if len(child) and len(adult):
-        age.update_xaxes(title='Écart adultes − enfants (points)')
-        for trace in age.data:
-            if trace.hovertemplate:
-                trace.hovertemplate = trace.hovertemplate.replace('Cohorte A', 'Enfants').replace('Cohorte B', 'Adultes')
-    age = resize(age, revision, f'Enfants : n={len(child)} · Adultes : n={len(adult)} · comparaison descriptive')
+    excess = resize(excess, revision, f'Profil {signature_group} − autres patients filtrés · dénominateurs au survol')
+    clinical_comparison = resize(profile_clinical_comparison(frame, selected_profile), revision)
+    if clinical_comparison.data:
+        clinical_comparison.update_layout(margin=dict(l=150, r=12, t=24, b=28))
     profile_clinical = resize(clinical_profiles(frame, outcome, selected_profile), revision)
     scope = f'Profil {selected_profile}' if selected_profile else 'Tous les patients des filtres'
     selection = []
@@ -407,12 +408,16 @@ def update(pop, chip, outcome, status, selected_allergen=None, selected_profile=
     options = [{'label': f'Profil {group} · n={number(int(frame.cluster.astype(str).eq(group).sum()))}',
                 'value': group} for group in valid_groups]
     excess_subtitle = (f'Profil {signature_group}' + (' (le plus nombreux)' if not selected_profile else '')
-                       + ' − total filtré') if signature_group else 'Aucun profil disponible'
+                       + ' − reste de la cohorte filtrée') if signature_group else 'Aucun profil disponible'
+    clinical_subtitle = (f'Profil {selected_profile} / reste des filtres · % Oui parmi les statuts renseignés'
+                        if selected_profile else 'Choisir un profil dans le menu ou cliquer un groupe')
     return (
-        number(n), median_label, number(complete), f'{number(known)} / {number(n)}',
+        number(n), median_label, number(complete),
+        [html.Span(f'{number(known)} / {number(n)}'), html.Small(f'{number(n - known)} inconnus')],
         selection, hist, top, clinical, takeaway(frame, detail, outcome, selected_allergen, selected_profile),
-        pca, excess, age, profile_clinical, options, excess_subtitle,
-        f'{scope} · écart Oui − Non', f'{scope} · adultes − enfants',
+        pca, excess, clinical_comparison, profile_clinical, options, excess_subtitle,
+        f'{scope} · écart Oui − Non · {len(detail) - int(detail[outcome].isin(["Oui", "Non"]).sum())} inconnus',
+        clinical_subtitle,
     )
 
 

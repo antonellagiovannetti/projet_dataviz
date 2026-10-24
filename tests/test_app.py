@@ -1,9 +1,21 @@
-"""Integration checks for scientific states and actual Dash callback requests."""
+"""Integration checks for the compact dashboard and real Dash callback requests."""
 import json
+
+import pandas as pd
 import pytest
-from plotly.utils import PlotlyJSONEncoder
-from app import app, dataset, model, server
-from src.callbacks import preset_cohorts, selected_frame
+
+import app as dashboard
+from app import ALLERGENS, DS, FULL, MODEL, app, server
+
+
+GRAPH_IDS = (
+    "compact-count", "compact-top", "compact-pca", "compact-excess",
+    "compact-clinical", "compact-cluster-clinical", "compact-profile-clinical",
+)
+CLICK_IDS = (
+    "compact-top", "compact-clinical", "compact-excess",
+    "compact-pca", "compact-cluster-clinical",
+)
 
 
 @pytest.fixture(scope="module")
@@ -11,196 +23,235 @@ def client():
     return server.test_client()
 
 
-def callback_request(client, output_contains, values, changed, status=200):
+def callback_request(client, output_contains, values, changed):
+    """Exercise Dash serialization, dispatch and response, not only Python helpers."""
     key = next(key for key in app.callback_map if output_contains in key)
     spec = app.callback_map[key]
-    inputs = [{**item, "value": values.get(f"{item['id']}.{item['property']}")} for item in spec["inputs"]]
-    state = [{**item, "value": values.get(f"{item['id']}.{item['property']}")} for item in spec["state"]]
-    outs = spec["output"]
-    outputs = [{"id": o.component_id, "property": o.component_property} for o in outs] if isinstance(outs,list) else {"id": outs.component_id, "property": outs.component_property}
-    response = client.post('/_dash-update-component', json={"output":key, "outputs":outputs, "inputs":inputs,
-                                                           "state":state,"changedPropIds":[changed]})
-    assert response.status_code == status, response.get_data(as_text=True)
-    return response.json["response"] if status == 200 else None
+    inputs = [{**item, "value": values.get(f"{item['id']}.{item['property']}")}
+              for item in spec["inputs"]]
+    states = [{**item, "value": values.get(f"{item['id']}.{item['property']}")}
+              for item in spec["state"]]
+    outputs = spec["output"]
+    outputs = ([{"id": item.component_id, "property": item.component_property}
+                for item in outputs] if isinstance(outputs, list)
+               else {"id": outputs.component_id, "property": outputs.component_property})
+    response = client.post("/_dash-update-component", json={
+        "output": key, "outputs": outputs, "inputs": inputs, "state": states,
+        "changedPropIds": [changed],
+    })
+    assert response.status_code == 200, response.get_data(as_text=True)
+    return response.json["response"]
 
 
-def render_values(page="overview", filters=None, cross=None, cohorts=None, mode="explore"):
-    return {"url.hash":f"#{page}", "filter-store.data":filters or {}, "cross-store.data":cross or {},
-            "coverage-sort.value":"common", "show-missing.value":["yes"], "allergen-metric.value":"prevalence",
-            "top-n.value":20, "age-mode.value":"standard", "heatmap-sort.value":"count",
-            "clinical-outcome.value":"skin", "clinical-dimension.value":"sensitization",
-            "cluster-k.value":model.best_k, "scale-mode.value":"within", "cohort-store.data":cohorts or {},
-            "reading-mode.value": mode}
-
-
-@pytest.mark.parametrize("page", ["overview","landscape","sensitization","clinical","profiles","explorer","conclusions","glossary"])
-@pytest.mark.parametrize("empty", [False,True])
-def test_all_chapters_real_callback(client,page,empty):
-    values=render_values(page, cross={"ids":[]} if empty else {})
-    result=callback_request(client,"page-body.children",values,"url.hash")
-    assert result["cohort-size"]["children"] == ("0" if empty else "4\u202f271")
-    assert result["page-body"]["children"]
-    def nodes(value):
-        if isinstance(value,list):
-            for item in value:
-                yield from nodes(item)
-        elif isinstance(value,dict):
-            yield value
-            yield from nodes(value.get("props",{}).get("children"))
-    for section in nodes(result["page-body"]["children"]):
-        if "chart-panel" not in section.get("props",{}).get("className",""):
-            continue
-        descendants=list(nodes(section.get("props",{}).get("children")))
-        assert any(node.get("props",{}).get("className")=="chart-takeaway" for node in descendants)
-
-
-def test_endpoints_and_local_assets(client):
-    for url in ['/', '/_dash-layout','/_dash-dependencies','/assets/style.css','/assets/logo.svg']:
-        assert client.get(url).status_code == 200
-
-
-def test_graph_chip_selection_and_removal(client):
-    data={"overview-chips.clickData":{"points":[{"customdata":["ALEX",26.7]}]}, "cross-store.data":{}, "reading-mode.value":"explore"}
-    result=callback_request(client,"cross-store.data",data,"overview-chips.clickData")
-    assert result['cross-store']['data']=={"chip":"ALEX"}
-    assert len(selected_frame(model,{},result['cross-store']['data']))==1139
-
-
-def test_lasso_zero_does_not_select_everyone(client):
-    data={"pca-chart.selectedData":{"points":[]}, "cross-store.data":{}, "reading-mode.value":"explore"}
-    result=callback_request(client,"cross-store.data",data,"pca-chart.selectedData")
-    assert result['cross-store']['data']=={"ids":[]}
-    assert selected_frame(model,{},result['cross-store']['data']).empty
-
-
-def test_lasso_exact_ids_and_age_intersection(client):
-    ids=model.frame.loc[model.frame.age.between(18,30),'id'].head(4).tolist()
-    data={"pca-chart.selectedData":{"points":[{"customdata":[i,20,"Femmes","ALEX",10,"1"]} for i in ids]},"cross-store.data":{}, "reading-mode.value":"explore"}
-    result=callback_request(client,"cross-store.data",data,"pca-chart.selectedData")
-    assert set(selected_frame(model,{"age":[18,30]},result['cross-store']['data']).id)==set(ids)
-    assert selected_frame(model,{"age":[0,17]},result['cross-store']['data']).empty
-
-
-def test_saved_cohort_is_snapshot_and_comparison_renders(client):
-    filters={"age":[0,17],"include_unknown_age":False}
-    state={"save-a.n_clicks":1,"filter-store.data":filters,"cross-store.data":{},
-           "cluster-k.value":model.k,"scale-mode.value":"within","cohort-store.data":{}}
-    a=callback_request(client,"cohort-store.data",state,"save-a.n_clicks")["cohort-store"]["data"]
-    expected=set(selected_frame(model,filters,{}).id)
-    assert set(a['a']['ids'])==expected
-    state.update({"save-a.n_clicks":None,"save-b.n_clicks":1,"filter-store.data":{"age":[18,100],"include_unknown_age":False},"cohort-store.data":a})
-    both=callback_request(client,"cohort-store.data",state,"save-b.n_clicks")["cohort-store"]["data"]
-    assert set(both['a']['ids'])==expected
-    assert set(both['a']['ids']).isdisjoint(both['b']['ids'])
-    result=callback_request(client,"page-body.children",render_values("explorer",cohorts=both),"cohort-store.data")
-    assert "cohort-difference" in json.dumps(result,cls=PlotlyJSONEncoder)
-
-
-def test_model_switch_clears_cluster_selection_only(client):
-    data={"cluster-k.value":3,"cross-store.data":{"cluster":"2","ids":["FHB0001"],"chip":"ALEX"}, "reading-mode.value":"explore"}
-    result=callback_request(client,"cross-store.data",data,"cluster-k.value")
-    assert result['cross-store']['data']=={"chip":"ALEX"}
-
-
-def test_filters_reset_without_erasing_saved_cohorts(client):
-    result=callback_request(client,"filter-age.value",{"reset-filters.n_clicks":1},"reset-filters.n_clicks")
-    assert result['filter-chip']['value']==[]
-    assert result['filter-allergen']['value'] is None
-    assert 'cohort-store' not in result
-
-
-def test_story_ignores_saved_exploration_but_explore_restores_it(client, monkeypatch):
-    import src.callbacks as callbacks
-    observed = []
-    def capture_page(**state):
-        observed.append(state)
-        return []
-    monkeypatch.setitem(callbacks.PAGES, "overview", capture_page)
-    values = render_values(filters={"chip":["ALEX"]}, cross={"cluster":"3"},
-                           cohorts={"a":{"ids":["saved-id"]}}, mode="story")
-    values.update({"cluster-k.value": 3, "scale-mode.value":"global", "clinical-outcome.value":"asthma",
-                   "allergen-metric.value":"median", "top-n.value":10})
-    calls = []
-    original_get_profiles = callbacks.get_profiles
-    def track_profiles(*args, **kwargs):
-        calls.append((args, kwargs))
-        return original_get_profiles(*args, **kwargs)
-    monkeypatch.setattr(callbacks, "get_profiles", track_profiles)
-    story = callback_request(client, "page-body.children", values, "reading-mode.value")
-    state = observed[-1]
-    assert calls == []
-    assert len(state["df"]) == len(dataset.frame)
-    assert state["model"] is model and state["model"].k == model.best_k
-    assert state["controls"]["outcome"] == "skin" and state["controls"]["metric"] == "prevalence"
-    assert state["controls"]["top_n"] == 20 and state["controls"]["mode"] == "story"
-    assert state["cross"] == {} and state["cohorts"] == values["cohort-store.data"]
-    assert story["app-shell"]["className"] == "app-shell mode-story"
-    for untouched in ("filter-store", "cross-store", "cohort-store", "cluster-k", "scale-mode"):
-        assert untouched not in story
-    assert {option["value"] for option in story["filter-cluster"]["options"]} >= {"3"}
-    values["reading-mode.value"] = "explore"
-    explore = callback_request(client, "page-body.children", values, "reading-mode.value")
-    state = observed[-1]
-    assert calls and state["model"].k == 3
-    assert state["df"].chip.eq("ALEX").all() and state["df"].cluster.eq("3").all()
-    assert state["controls"]["outcome"] == "asthma" and state["controls"]["metric"] == "median"
-    assert state["cross"] == {"cluster":"3"} and state["cohorts"] == values["cohort-store.data"]
-    assert explore["app-shell"]["className"] == "app-shell mode-explore"
-
-
-def test_story_graph_events_leave_saved_cross_filters_untouched(client):
-    values = {"reading-mode.value":"story", "cross-store.data":{"chip":"ALEX"},
-              "pca-chart.selectedData":{"points":[]}}
-    callback_request(client, "cross-store.data", values, "pca-chart.selectedData", status=204)
-
-
-def test_laboratory_mode_navigation_keeps_cohorts_and_filters(client):
-    values = {"reading-mode.value":"story", "url.hash":"#explorer"}
-    entered = callback_request(client, "reading-mode.value", values, "url.hash")
-    assert entered == {"reading-mode":{"value":"explore"}}
-    returned = callback_request(client, "reading-mode.value", values, "reading-mode.value")
-    assert returned == {"url":{"hash":"#overview"}}
-    callback_request(client, "reading-mode.value", {"reading-mode.value":"story", "url.hash":"#overview"},
-                     "url.hash", status=204)
-
-
-@pytest.mark.parametrize("key", ["age", "sex", "skin", "cluster"])
-def test_cohort_presets_use_exact_source_populations(key):
-    frame = model.frame
-    expected = {
-        "age": (frame.age.between(0,17), frame.age.ge(18)),
-        "sex": (frame.sex.eq("Hommes"), frame.sex.eq("Femmes")),
-        "skin": (frame.skin.eq("Oui"), frame.skin.eq("Non")),
-        "cluster": (frame.cluster.eq("1"), frame.cluster.eq("2")),
+def values(**overrides):
+    current = {
+        "compact-pop.value": "all", "compact-chip.value": "all",
+        "compact-outcome.value": "skin", "compact-status.value": "all",
+        "compact-focus-allergen.value": None, "compact-focus-profile.value": None,
+        "compact-reset.n_clicks": 0,
     }
-    cohorts = preset_cohorts(key, model, dataset, "within")
-    for slot, mask in zip(("a", "b"), expected[key]):
-        assert set(cohorts[slot]["ids"]) == set(frame.loc[mask,"id"])
-        assert cohorts[slot]["model_k"] == model.k
-        assert cohorts[slot]["scaling"] == "within"
-        assert cohorts[slot]["source"] == dataset.source_path.name
-        assert cohorts[slot]["saved_at"]
-    assert set(cohorts["a"]["ids"]).isdisjoint(cohorts["b"]["ids"])
+    current.update(overrides)
+    return current
 
 
-def test_preset_requires_explicit_click_and_overwrites_both_snapshots(client):
-    preset_input = '{"key":["ALL"],"type":"cohort-preset"}.n_clicks'
-    changed = '{"key":"skin","type":"cohort-preset"}.n_clicks'
-    values = {preset_input:[0,0,0,0], "filter-store.data":{"chip":["ALEX"]}, "cross-store.data":{"ids":[]},
-              "cohort-store.data":{"a":{"ids":["old"]}}, "cluster-k.value":model.k, "scale-mode.value":"within"}
-    callback_request(client, "cohort-store.data", values, changed, status=204)
-    values[preset_input] = [0,0,1,0]
-    result = callback_request(client, "cohort-store.data", values, changed)["cohort-store"]["data"]
-    assert set(result["a"]["ids"]) == set(model.frame.loc[model.frame.skin.eq("Oui"), "id"])
-    assert set(result["b"]["ids"]) == set(model.frame.loc[model.frame.skin.eq("Non"), "id"])
-    assert len(result["a"]["ids"]) == 1140 and len(result["b"]["ids"]) == 686
+def render(client, current=None, changed="compact-pop.value"):
+    return callback_request(client, "compact-patients.children", current or values(), changed)
 
 
-def test_group_preset_uses_current_model_not_story_reference():
-    from src.clustering import get_profiles
-    current = get_profiles(3, False)
-    snapshots = preset_cohorts("cluster", current, dataset, "global")
-    for slot, label in (("a","1"), ("b","2")):
-        assert set(snapshots[slot]["ids"]) == set(current.frame.loc[current.frame.cluster.eq(label), "id"])
-        assert snapshots[slot]["model_k"] == 3 and snapshots[slot]["scaling"] == "global"
-        assert "K = 3" in snapshots[slot]["description"] and "globale" in snapshots[slot]["description"]
+def text_content(node):
+    if isinstance(node, str):
+        return node
+    if isinstance(node, list):
+        return " ".join(text_content(child) for child in node)
+    if isinstance(node, dict):
+        return text_content(node.get("props", {}).get("children"))
+    return ""
+
+
+def figure_text(figure):
+    return " ".join(annotation["text"] for annotation in figure["layout"].get("annotations", []))
+
+
+def test_endpoints_and_compact_layout(client):
+    for url in ("/", "/_dash-layout", "/_dash-dependencies", "/assets/compact.css", "/assets/style.css"):
+        assert client.get(url).status_code == 200
+    layout = client.get("/_dash-layout").json
+    serialized = json.dumps(layout, ensure_ascii=False)
+    for graph_id in GRAPH_IDS:
+        assert f'"id": "{graph_id}"' in serialized
+    assert "compact-cohort" not in serialized
+    copy = text_content(layout)
+    assert "profils de détection IgE" in copy
+    assert "Profils IgE complets" in copy
+    assert "Statuts cliniques renseignés" in copy
+    assert "sensibilisation IgE" not in copy
+
+
+@pytest.mark.parametrize("tab,visible,hidden", [
+    ("synthesis", "compact-synthesis", "compact-profiles"),
+    ("profiles", "compact-profiles", "compact-synthesis"),
+])
+def test_tab_visibility_real_callback(client, tab, visible, hidden):
+    result = callback_request(client, "compact-synthesis.style",
+                              {"compact-tab.value": tab}, "compact-tab.value")
+    assert result[visible]["style"].get("display") != "none"
+    assert result[hidden]["style"]["display"] == "none"
+    assert text_content(result["compact-intro"]["children"])
+
+
+@pytest.mark.parametrize("outcome", ["skin", "asthma", "rhinitis", "dermatitis"])
+def test_all_clinical_variables_render_and_keep_unknown_counts(client, outcome):
+    result = render(client, values(**{"compact-outcome.value": outcome}))
+    assert result["compact-patients"]["children"] == dashboard.number(len(DS.frame))
+    assert result["compact-complete"]["children"] == dashboard.number(int(FULL.common_complete.sum()))
+    known = int(FULL[outcome].isin(["Oui", "Non"]).sum())
+    kpi = text_content(result["compact-known"]["children"])
+    assert f"{dashboard.number(known)} / {dashboard.number(len(FULL))}" in kpi
+    assert dashboard.number(len(FULL) - known) in kpi and "inconnus" in kpi
+    for graph_id in GRAPH_IDS:
+        assert "layout" in result[graph_id]["figure"]
+    empty = result["compact-profile-clinical"]["figure"]
+    assert not empty["data"] and "profil" in figure_text(empty).lower()
+    assert {item["value"] for item in result["compact-focus-profile"]["options"]} == set(MODEL.labels)
+
+
+@pytest.mark.parametrize("population,chip,outcome,status", [
+    ("children", "ALEX", "skin", "all"),
+    ("adults", "ISAC V1", "asthma", "Oui"),
+    ("all", "ISAC V2", "rhinitis", "Non"),
+])
+def test_global_filters_intersect_without_refitting(client, monkeypatch, population, chip, outcome, status):
+    def unexpected_refit(*args, **kwargs):
+        pytest.fail("Interactions must not refit the model")
+    monkeypatch.setattr(dashboard, "get_profiles", unexpected_refit)
+    labels_before = MODEL.labels.copy(deep=True)
+    expected = FULL.loc[FULL.chip.eq(chip)]
+    if population == "children":
+        expected = expected.loc[expected.age.lt(18)]
+    elif population == "adults":
+        expected = expected.loc[expected.age.ge(18)]
+    if status != "all":
+        expected = expected.loc[expected[outcome].eq(status)]
+    result = render(client, values(**{
+        "compact-pop.value": population, "compact-chip.value": chip,
+        "compact-outcome.value": outcome, "compact-status.value": status,
+    }))
+    assert result["compact-patients"]["children"] == dashboard.number(len(expected))
+    pd.testing.assert_series_equal(MODEL.labels, labels_before)
+    if status != "all":
+        assert not result["compact-clinical"]["figure"]["data"]
+
+
+def test_dropdown_profile_and_allergen_focus_reaches_all_relevant_panels(client):
+    profile = dashboard.groups(FULL)[0]
+    allergen = ALLERGENS[-1]
+    result = render(client, values(**{
+        "compact-focus-allergen.value": allergen,
+        "compact-focus-profile.value": profile,
+    }), "compact-focus-profile.value")
+    assert f"Profil {profile}" in text_content(result["compact-selection"]["children"])
+    assert allergen.replace("_", " ") in text_content(result["compact-selection"]["children"])
+    assert result["compact-profile-clinical"]["figure"]["data"]
+    assert "reste" in result["compact-excess-subtitle"]["children"].lower()
+    for graph_id in ("compact-top", "compact-excess", "compact-clinical"):
+        figure = result[graph_id]["figure"]
+        if figure["data"]:
+            assert any(row[0] == allergen for trace in figure["data"]
+                       for row in trace.get("customdata", []))
+
+
+@pytest.mark.parametrize("graph_id", ["compact-top", "compact-clinical", "compact-excess"])
+def test_allergen_clicks_select_and_consume_events(client, graph_id):
+    current = values(**{f"{graph_id}.clickData": {"points": [{"customdata": [ALLERGENS[0]]}]}})
+    result = callback_request(client, "compact-pop.value", current, f"{graph_id}.clickData")
+    assert result["compact-focus-allergen"]["value"] == ALLERGENS[0]
+    for item in CLICK_IDS:
+        assert result[item]["clickData"] is None
+
+
+@pytest.mark.parametrize("graph_id", ["compact-pca", "compact-cluster-clinical"])
+def test_profile_clicks_select_and_consume_events(client, graph_id):
+    profile = dashboard.groups(FULL)[0]
+    custom = ["patient-id", 20, "Femmes", "ALEX", 10, profile] if graph_id == "compact-pca" else [profile]
+    current = values(**{f"{graph_id}.clickData": {"points": [{"customdata": custom}]}})
+    result = callback_request(client, "compact-pop.value", current, f"{graph_id}.clickData")
+    assert result["compact-focus-profile"]["value"] == profile
+    for item in CLICK_IDS:
+        assert result[item]["clickData"] is None
+
+
+@pytest.mark.parametrize("event", [None, {}, {"points": []}, {"points": [None]},
+                                   {"points": [{"customdata": "invalid"}]},
+                                   {"points": [{"customdata": []}]},
+                                   {"points": [{"customdata": ["not-an-allergen"]}]}])
+def test_empty_and_malformed_clicks_do_not_change_selection(client, event):
+    result = callback_request(client, "compact-pop.value", values(**{"compact-top.clickData": event}),
+                              "compact-top.clickData")
+    assert result == {}
+
+
+def test_stale_profile_click_is_ignored(client):
+    current = values(**{"compact-cluster-clinical.clickData": {"points": [{"customdata": ["999"]}]}})
+    result = callback_request(client, "compact-pop.value", current, "compact-cluster-clinical.clickData")
+    assert result == {}
+
+
+@pytest.mark.parametrize("filter_id", ["compact-pop", "compact-chip", "compact-outcome", "compact-status"])
+def test_filter_changes_clear_profile_and_clicks_but_keep_allergen(client, filter_id):
+    current = values(**{"compact-focus-allergen.value": ALLERGENS[0], "compact-focus-profile.value": "1"})
+    result = callback_request(client, "compact-pop.value", current, f"{filter_id}.value")
+    assert result["compact-focus-profile"]["value"] is None
+    assert "compact-focus-allergen" not in result
+    for item in CLICK_IDS:
+        assert result[item]["clickData"] is None
+
+
+def test_reset_restores_filters_focus_and_click_events(client):
+    current = values(**{
+        "compact-pop.value": "children", "compact-chip.value": "ALEX",
+        "compact-outcome.value": "asthma", "compact-status.value": "Oui",
+        "compact-focus-allergen.value": ALLERGENS[0], "compact-focus-profile.value": "1",
+        "compact-reset.n_clicks": 1,
+    })
+    result = callback_request(client, "compact-pop.value", current, "compact-reset.n_clicks")
+    for component, expected in (("pop", "all"), ("chip", "all"), ("outcome", "skin"), ("status", "all"),
+                                ("focus-allergen", None), ("focus-profile", None)):
+        assert result[f"compact-{component}"]["value"] == expected
+    for item in CLICK_IDS:
+        assert result[item]["clickData"] is None
+
+
+def test_invalid_dropdown_values_fall_back_to_unfocused_view(client):
+    result = render(client, values(**{
+        "compact-focus-allergen.value": "not-an-allergen", "compact-focus-profile.value": "999",
+    }))
+    assert not result["compact-profile-clinical"]["figure"]["data"]
+    assert "999" not in text_content(result["compact-selection"]["children"])
+    assert "not-an-allergen" not in text_content(result["compact-selection"]["children"])
+
+
+def test_empty_cohort_never_restores_full_population(client, monkeypatch):
+    monkeypatch.setattr(dashboard, "FULL", FULL.iloc[:0].copy())
+    result = render(client, values(**{"compact-focus-profile.value": "1"}))
+    assert result["compact-patients"]["children"] == "0"
+    assert result["compact-complete"]["children"] == "0"
+    assert result["compact-median"]["children"] == "—"
+    assert result["compact-focus-profile"]["options"] == []
+    for graph_id in GRAPH_IDS:
+        assert not result[graph_id]["figure"]["data"]
+        assert figure_text(result[graph_id]["figure"])
+
+
+def test_unknown_clinical_statuses_remain_missing_not_zero(client, monkeypatch):
+    frame = FULL.loc[FULL.cluster.ne("Non attribué")].head(8).copy()
+    for outcome in dashboard.OUTCOMES:
+        frame[outcome] = "Inconnu"
+    monkeypatch.setattr(dashboard, "FULL", frame)
+    result = render(client, values(**{"compact-focus-profile.value": str(frame.cluster.iloc[0])}))
+    assert "0 / 8" in text_content(result["compact-known"]["children"])
+    assert not result["compact-clinical"]["figure"]["data"]
+    group_chart = result["compact-cluster-clinical"]["figure"]
+    assert group_chart["data"]
+    rates = [value for trace in group_chart["data"] for value in trace.get("y", [])]
+    assert rates and all(value is None for value in rates)
+    assert "sévérité" not in text_content(result["compact-takeaway"]["children"])

@@ -65,6 +65,10 @@ body:has(.compact-app){overflow:hidden;background:#f3f6f9;color:#182c47;font-fam
 .compact-reset{grid-column:4;width:100%;height:35px;min-height:35px;padding:6px 10px;align-self:end;white-space:nowrap}
 .compact-selection{grid-column:3;grid-row:1;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;max-width:none;min-width:0;min-height:35px;font-size:10px;line-height:1.25;text-align:left;color:#527083;padding:0 3px}
 .compact-footer{justify-content:flex-start}
+#compact-known{display:flex;align-items:baseline;gap:8px}
+#compact-known>span{font:inherit;color:inherit}
+#compact-known>small{font-size:10px;font-weight:400;letter-spacing:0;line-height:12px}
+.compact-takeaway .compact-method p{position:fixed;bottom:35vh;right:27px;left:auto;width:min(570px,calc(100vw - 54px));max-height:55vh;overflow:auto;z-index:100}
 @media(max-height:800px) and (min-width:1101px){.compact-controls{height:103px;gap:4px;padding-top:4px;padding-bottom:4px}}
 @media(max-width:1100px) and (min-width:801px){.compact-controls{padding-left:12px;padding-right:12px}.compact-filters,.compact-focus-row{gap:7px}.compact-selection{font-size:9px}}
 @media(max-width:800px){.compact-controls{height:auto;gap:10px;padding:10px 12px}.compact-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.compact-focus-row{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}.compact-selection{grid-column:1/-1;grid-row:2;min-height:0;font-size:11px}.compact-reset{grid-column:1/-1;grid-row:3}.compact-panel{height:340px}}
