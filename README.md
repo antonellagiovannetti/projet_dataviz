@@ -10,7 +10,7 @@ Projet de Data Visualisation — Master 2 IA/Data — Dash / Plotly
 
 **Comment se structurent les profils de détection IgE dans la cohorte ACC, et quelles associations observe-t-on avec les informations cliniques disponibles ?**
 
-L'application répond à la question en deux étapes, accessibles dans deux onglets. Chaque onglet est conçu pour tenir sur un écran d'ordinateur sans défilement principal (cible : 1366 × 768 ou supérieur, navigateur à 100 %). Sur mobile, le défilement est autorisé pour la lisibilité.
+L'application répond à la question en deux étapes, accessibles dans deux onglets. Chaque onglet tient sur un écran d'ordinateur sans défilement principal (cible : 1366 × 768 ou supérieur, navigateur à 100 %). Dans une fenêtre étroite ou peu haute, sur tablette et sur mobile, le défilement vertical préserve la hauteur et la lisibilité des graphiques. Les contrôles et KPI se réorganisent, les deux onglets restent accessibles, et les libellés et effectifs du graphique clinique s'adaptent à la largeur du panneau.
 
 ## Les deux onglets
 
@@ -99,7 +99,7 @@ tests/                  Tests des données, analyses, graphiques et callbacks co
 README.md               Documentation du projet
 ```
 
-**Le point d'entrée est `app.py`.** Ses imports utilisent les six modules `src/` décrits ci-dessus. Dash charge automatiquement les assets CSS : `assets/compact.css` définit la disposition compacte et `assets/style.css` reste nécessaire pour certaines règles globales de typographie et de contrôles.
+**Le point d'entrée est `app.py`.** Ses imports utilisent les six modules `src/` décrits ci-dessus. Dash charge automatiquement les assets : `assets/compact.css` définit les dispositions responsive, `assets/responsive.js` adapte les annotations Plotly à la taille des panneaux sans recalculer les données, et `assets/style.css` reste nécessaire pour certaines règles globales de typographie et de contrôles.
 
 ## Tests et dépannage
 

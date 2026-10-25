@@ -118,7 +118,7 @@ app.layout = html.Div([
                      role='status', **{'aria-live': 'polite'}),
         ], className='compact-focus-row'),
     ], className='compact-controls'),
-    dcc.Tabs(id='compact-tab', value='synthesis', className='compact-tabs', children=[
+    dcc.Tabs(id='compact-tab', value='synthesis', className='compact-tabs', mobile_breakpoint=0, children=[
         dcc.Tab(label='01 · Identifier les profils IgE', value='synthesis',
                 className='compact-tab', selected_className='compact-tab-selected'),
         dcc.Tab(label='02 · Explorer les liens cliniques', value='profiles',
@@ -255,8 +255,10 @@ def resize(fig, revision, note=None):
             annotation.font.size = 9
         annotations.append(annotation)
     fig.layout.annotations = annotations
-    fig.update_layout(height=None, autosize=True, margin=dict(l=55, r=16, t=28, b=42),
+    fig.update_layout(height=None, autosize=True, margin=dict(l=55, r=16, t=22, b=32),
                       font=dict(size=10), legend=dict(font=dict(size=9)), uirevision=revision)
+    fig.update_xaxes(tickfont_size=10, title_font_size=10, title_standoff=6)
+    fig.update_yaxes(tickfont_size=10, title_font_size=10, title_standoff=6)
     return fig
 
 
@@ -273,7 +275,7 @@ def clinical_profiles(frame, outcome, selected_profile):
     selected = [r[0] == selected_profile for r in rates]
     fig = go.Figure(go.Bar(
         x=[f'Profil {r[0]}' + (' (sélection)' if focus else '')
-           + f'<br>{r[2]} connus · {r[4]} inconnus' for r, focus in zip(rates, selected)],
+           + f'<br>{r[2]} connus<br>{r[4]} inconnus' for r, focus in zip(rates, selected)],
         y=[r[1] for r in rates], text=[f'{r[1]:.1f} %' if r[1] is not None else '' for r in rates],
         textposition='outside', cliponaxis=False,
         marker=dict(color=['#182c47' if focus else '#198a85' for focus in selected],
@@ -287,7 +289,7 @@ def clinical_profiles(frame, outcome, selected_profile):
     fig.update_layout(template='plotly_white', paper_bgcolor='rgba(0,0,0,0)',
                       plot_bgcolor='rgba(0,0,0,0)', clickmode='event', dragmode=False,
                       yaxis=dict(title='% de Oui parmi les connus', range=[0, 110], fixedrange=True),
-                      xaxis=dict(fixedrange=True, automargin=True))
+                      xaxis=dict(fixedrange=True, automargin=True, tickangle=0))
     for row, label in zip(rates, fig.data[0].x):
         if row[1] is None:
             fig.add_annotation(x=label, y=5, text='n/d', showarrow=False)
@@ -384,7 +386,7 @@ def update(pop, chip, outcome, status, selected_allergen=None, selected_profile=
     pca = resize(pca_scatter(frame.loc[frame.common_complete], MODEL.explained_variance,
                              selected_cluster=selected_profile), revision)
     pca.update_layout(clickmode='event', dragmode='zoom',
-                      legend=dict(itemclick=False, itemdoubleclick=False))
+                      legend=dict(itemclick=False, itemdoubleclick=False, y=1.02, yanchor='bottom'))
     # Give the overview a useful default, explicitly identified in the subtitle.
     default_group = (frame.loc[frame.cluster.astype(str).isin(valid_groups), 'cluster']
                      .astype(str).value_counts().index[0]) if valid_groups else None
