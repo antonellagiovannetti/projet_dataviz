@@ -17,6 +17,7 @@ INK = "#182c47"
 TEAL = "#168b87"
 VIOLET = "#8580bb"
 MUTED = "#81909f"
+SECONDARY_TEXT = "#566B7C"
 GRID = "#edf1f5"
 COLORS = [TEAL, VIOLET, "#e5a768", "#4a7fba", "#b2749c", "#7ba573", "#bb8c65", "#64758c"]
 CHIP_COLORS = {"ISAC V1": INK, "ISAC V2": VIOLET, "ALEX": TEAL}
@@ -53,7 +54,7 @@ def empty_figure(message: str = "Aucun patient ne correspond à cette sélection
     fig.update_xaxes(visible=False)
     fig.update_yaxes(visible=False)
     fig.add_annotation(text="<br>".join(textwrap.wrap(message, width=34)), x=.5, y=.5, xref="paper", yref="paper", showarrow=False,
-                       font=dict(color=MUTED, size=13), align="center")
+                       font=dict(color=SECONDARY_TEXT, size=13), align="center")
     return fig
 
 
@@ -61,7 +62,7 @@ def _note(fig: go.Figure, text: str, y: float = 1.07) -> None:
     lines = textwrap.wrap(text, width=36)
     fig.update_layout(margin_t=max(fig.layout.margin.t or 26, 22 + len(lines)*12))
     fig.add_annotation(text="<br>".join(lines), x=0, y=1.025 if y <= 1.1 else y, xref="paper", yref="paper", showarrow=False,
-                       xanchor="left", yanchor="bottom", align="left", font=dict(size=10, color=MUTED))
+                       xanchor="left", yanchor="bottom", align="left", font=dict(size=10, color=SECONDARY_TEXT))
 
 
 def _fmt(n: float | int) -> str:
@@ -476,7 +477,7 @@ def clinical_differential(df: pd.DataFrame, clinical_col: str, allergens: Sequen
         unknown = int((~statuses.isin(["Oui", "Non"])).sum())
         fig.add_annotation(text=f"Non renseignés exclus : n = {_fmt(unknown)}",
                            x=0, y=0, yshift=-60, yanchor="top", xref="paper", yref="paper", xanchor="left", showarrow=False,
-                           font=dict(size=10, color=MUTED))
+                           font=dict(size=10, color=SECONDARY_TEXT))
     return fig
 
 
@@ -575,6 +576,13 @@ def pca_scatter(projection_df: pd.DataFrame, explained_variance: Sequence[float]
                                                  "<br>IgE détectées (panel commun) : %{customdata[4]}"
                                                  "<br>PC1 : %{x:.2f} · PC2 : %{y:.2f}"
                                                  "<br>Cliquer pour caractériser ce profil<extra></extra>"))
+        fig.add_annotation(
+            name=f"pca-profile-label-{cluster}", text=f"Profil {cluster}",
+            x=float(group.pc1.median()), y=float(group.pc2.median()),
+            xref="x", yref="y", showarrow=False, captureevents=False,
+            font=dict(color=INK, size=10), bgcolor="rgba(255,255,255,.88)",
+            bordercolor=INK, borderwidth=2 if is_selected else 1, borderpad=2,
+        )
     _base(fig, 480, left=50, bottom=90)
     fig.update_layout(dragmode="zoom", clickmode="event", legend=dict(y=1.1, font_size=10))
     labels = ["Composante principale 1", "Composante principale 2"]
@@ -583,7 +591,7 @@ def pca_scatter(projection_df: pd.DataFrame, explained_variance: Sequence[float]
     fig.update_xaxes(title=labels[0], showgrid=True)
     fig.update_yaxes(title=labels[1])
     fig.add_annotation(text=f"n = {_fmt(len(df))} patients projetés<br>○ ISAC V1 · ◇ ISAC V2 · □ ALEX",
-                       x=0, y=0, yshift=-60, yanchor="top", xref="paper", yref="paper", showarrow=False, xanchor="left", align="left", font=dict(size=10, color=MUTED))
+                       x=0, y=0, yshift=-60, yanchor="top", xref="paper", yref="paper", showarrow=False, xanchor="left", align="left", font=dict(size=10, color=SECONDARY_TEXT))
     return fig
 
 
@@ -699,7 +707,7 @@ def profile_clinical_comparison(df: pd.DataFrame,
     )
     fig.add_annotation(x=.46, y=-.3, xref="paper", yref="paper", showarrow=False,
                        text="Effectifs : connus / inconnus", xanchor="left",
-                       yanchor="top", font=dict(size=9, color=MUTED))
+                       yanchor="top", font=dict(size=9, color=SECONDARY_TEXT))
     fig.update_xaxes(domain=[0, .40], range=[-4, 104], tickvals=[0, 50, 100],
                      title="% de Oui", showgrid=True, fixedrange=True)
     fig.update_yaxes(range=[3.5, -.5], tickvals=list(range(4)), ticktext=labels,

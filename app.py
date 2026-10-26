@@ -30,6 +30,26 @@ app = Dash(__name__, title='Allergy Atlas | Explorer une cohorte en allergologie
            assets_folder=str(ROOT / 'assets'))
 server = app.server
 
+GRAPH_DESCRIPTIONS = {
+    'compact-count': 'Distribution du nombre de détections IgE par patient sur le panel commun, '
+                     'parmi les patients dont le profil IgE est complet dans les filtres actifs.',
+    'compact-top': 'Classement des allergènes les plus détectés dans la population filtrée. '
+                   'Les fréquences utilisent les mesures renseignées. '
+                   'Le menu « Allergène à suivre » permet aussi de sélectionner un allergène.',
+    'compact-pca': 'Projection PCA des profils IgE complets : chaque point représente un patient, '
+                   'la couleur indique son profil et la forme sa technologie. '
+                   'Les labels nomment les profils. Le menu « Profil à explorer » permet aussi de sélectionner un profil.',
+    'compact-excess': 'Comparaison descriptive des fréquences de détection IgE entre le profil indiqué '
+                      'et les autres patients de la cohorte filtrée. Les écarts sont exprimés en points de pourcentage.',
+    'compact-clinical': 'Comparaison descriptive des fréquences de détection IgE entre les statuts Oui et Non '
+                        'de l’information clinique choisie. Les statuts inconnus sont exclus de la comparaison.',
+    'compact-cluster-clinical': 'Pour chaque profil, taux de Oui pour l’information clinique choisie, '
+                               'calculé parmi les statuts renseignés. Les effectifs connus et inconnus sont distingués.',
+    'compact-profile-clinical': 'Comparaison descriptive du profil sélectionné et du reste de la cohorte filtrée '
+                                'pour les symptômes cutanés et les traitements de l’asthme, de la rhinite et de la dermatite. '
+                                'Chaque taux de Oui utilise les statuts renseignés de sa variable ; les inconnus sont indiqués.',
+}
+
 
 def number(value):
     return f'{value:,}'.replace(',', ' ')
@@ -49,6 +69,15 @@ def tile(label, value_id):
 
 def panel(title, body, subtitle='', subtitle_id=None):
     small = html.Small(subtitle, id=subtitle_id) if subtitle_id else html.Small(subtitle)
+    if isinstance(body, dcc.Graph):
+        title_id = f'{body.id}-title'
+        description_id = f'{body.id}-description'
+        return html.Section([
+            html.Div([html.H2(title, id=title_id), small], className='compact-panel-title'),
+            html.P(GRAPH_DESCRIPTIONS[body.id], id=description_id, className='sr-only'),
+            body,
+        ], className='compact-panel', role='group',
+           **{'aria-labelledby': title_id, 'aria-describedby': description_id})
     return html.Section([
         html.Div([html.H2(title), small], className='compact-panel-title'), body,
     ], className='compact-panel')
